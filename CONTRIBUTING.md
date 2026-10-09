@@ -11,5 +11,9 @@ Thanks for helping. Bug reports, docs fixes and new guards are all welcome.
 5. Add a line under `## [Unreleased]` in `CHANGELOG.md`.
 6. Open a PR and fill in the template.
 
+**Editing the kit with Claude Code:** the installed settings deny Claude edits to `~/.claude/kit/**`, which links
+to your clone, and deny rules follow links. While you work on the kit, remove `"Edit(~/.claude/kit/**)"` from
+`~/.claude/settings.json`; put it back after (`./install.sh --status` reports it missing until you do).
+
 Questions go to Discussions, not Issues. Be kind: see `CODE_OF_CONDUCT.md`. By contributing, you agree your work
 is licensed under this project's MIT license.

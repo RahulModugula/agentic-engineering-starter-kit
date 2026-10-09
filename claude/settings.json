@@ -4,18 +4,53 @@
       "Read(.env)",
       "Read(.env.*)",
       "Read(!.env.example)",
-      "Read(secrets/**)",
-      "Read(**/*.pem)",
-      "Read(**/*.key)",
+      "Read(**/.secrets/**)",
+      "Read(**/secrets/**)",
+      "Read(*.pem)",
+      "Read(*.key)",
+      "Read(*.p12)",
+      "Read(*.pfx)",
       "Read(~/.ssh/**)",
       "Read(~/.aws/**)",
       "Read(~/.config/gh/**)",
+      "Read(~/.config/gcloud/**)",
+      "Read(~/.azure/**)",
+      "Read(~/.kube/**)",
+      "Read(~/.docker/config.json)",
+      "Read(~/.npmrc)",
+      "Read(~/.pypirc)",
       "Read(~/.netrc)",
+      "Read(~/.git-credentials)",
       "Read(~/.claude/.credentials.json)",
+      "Edit(~/.claude/settings.json)",
+      "Edit(~/.claude/settings.local.json)",
+      "Edit(~/.claude/hooks/**)",
+      "Edit(~/.claude/lib/**)",
+      "Edit(~/.claude/kit/**)",
+      "Edit(~/.claude/guard.conf)",
+      "Edit(~/.claude/lanes.zsh)",
+      "Edit(~/.claude/CLAUDE.md)",
+      "Edit(~/.claude/roles/**)",
+      "Edit(~/.claude/agents/**)",
+      "Edit(~/.claude/gos/**)",
+      "Edit(~/.claude/trusted-repos)",
+      "Edit(~/.local/state/merge-queue/**)",
+      "Edit(.claude/tests-locked)",
       "Bash(git push --force *)",
       "Bash(git push -f *)"
     ],
-    "disableBypassPermissionsMode": "disable"
+    "disableBypassPermissionsMode": "disable",
+    "ask": [
+      "Bash(git reset --hard*)",
+      "Bash(git clean -f*)",
+      "Bash(git clean -d*)",
+      "Bash(git checkout -- *)",
+      "Bash(git restore .*)",
+      "Bash(git stash drop*)",
+      "Bash(git stash clear*)",
+      "Bash(git branch -D *)",
+      "Bash(git worktree remove --force*)"
+    ]
   },
   "hooks": {
     "PreToolUse": [
@@ -26,7 +61,8 @@
             "type": "command",
             "command": "~/.claude/hooks/lane-guard.sh",
             "timeout": 10,
-            "statusMessage": "lane guard"
+            "statusMessage": "lane guard",
+            "onFailure": "block"
           }
         ]
       },
@@ -37,7 +73,8 @@
             "type": "command",
             "command": "~/.claude/hooks/tests-lock.sh",
             "timeout": 10,
-            "statusMessage": "test lock"
+            "statusMessage": "test lock",
+            "onFailure": "block"
           }
         ]
       }
@@ -97,11 +134,33 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/audit-log.sh",
+            "async": true,
+            "timeout": 10
+          }
+        ]
+      }
     ]
   },
   "statusLine": {
     "type": "command",
     "command": "~/.claude/hooks/statusline.sh",
     "padding": 0
+  },
+  "autoMode": {
+    "hard_deny": [
+      "$defaults",
+      "Never push to main or master, and never move those branches any other way (API ref updates, subtree pushes, push settings): work lands through a pull request merged by the coordinator.",
+      "Never change the session guards or their records: files under ~/.claude (hooks, lib, kit, settings, guard.conf, trusted-repos, lanes.zsh, CLAUDE.md, roles, agents), the merge-queue state, or a repo's .claude/tests-locked.",
+      "Never stop processes by name pattern (pkill, killall, kill with pgrep): stop only your own process by its PID.",
+      "Never record a human approval or a test lock on a person's behalf: only the person types those."
+    ]
   }
 }

@@ -4,11 +4,13 @@
 mkdir -p "$TMP/bin" "$TMP/gh" "$TMP/state"
 cp "$ROOT/tests/fixtures/fake-gh" "$TMP/bin/gh"; chmod +x "$TMP/bin/gh"
 export PATH="$TMP/bin:$PATH" FAKE_GH="$TMP/gh" POLL_TRIES=1 POLL_SLEEP=0 POLL_RECHECK=0 MQ_HERE="$ROOT/bin" MERGE_STATE="$TMP/state"
+unset HUMAN_REVIEWERS ALLOW_LOCAL_APPROVALS VERIFIER_LOGIN VERIFY_FROM CI_WORKFLOWS URGENT DRY_RUN MERGE_MODE REQUIRE_VERIFIED REVIEW_TIERS GH_ACCOUNT
 SHA=1234567890abcdef1234567890abcdef12345678
 # Tier stub: $TMP/tier holds "none" (no policy), "agent" or "human"; "error" makes it fail.
 echo none > "$TMP/tier"
 cat > "$TMP/bin/tierstub" <<EOF
 #!/bin/bash
+[ -n "\${TIER_EAT_STDIN:-}" ] && cat >/dev/null
 case \$(cat $TMP/tier) in
   none)  echo '{"tier":"human","policy_found":false,"reasons":["no .review-tiers on the base branch: every path defaults to human"],"human_files":[]}'; exit 10;;
   agent) echo '{"tier":"agent","policy_found":true,"reasons":[],"human_files":[]}'; exit 0;;
@@ -41,6 +43,14 @@ jq '.statusCheckRollup += [{"state":"EXPECTED"}]' "$FAKE_GH/o_r-11.json" > "$TMP
 rc 1 "guard waits on (does not merge past) an EXPECTED required status" /bin/bash "$G" o/r 11 "$SHA" 3
 rc 2 "guard usage error" /bin/bash "$G" o/r
 eq "only PR 1 was merged" "$(cat "$FAKE_GH/merged.log")" "o/r 1"
+# mergeStateStatus is an allow-list: CLEAN or HAS_HOOKS merge; empty, unknown or new states refuse.
+: > "$FAKE_GH/merged.log"
+pr o/r 31 OPEN HAS_HOOKS 3 0 0;  rc 0 "guard merges HAS_HOOKS (allow-listed)" /bin/bash "$G" o/r 31 "$SHA" 3
+pr o/r 32 OPEN "" 3 0 0;         rc 1 "guard refuses an empty mergeStateStatus" /bin/bash "$G" o/r 32 "$SHA" 3
+pr o/r 33 OPEN NEW_STATE 3 0 0;  out=$(/bin/bash "$G" o/r 33 "$SHA" 3 2>&1); r=$?
+eq "guard refuses a mergeStateStatus it doesn't know" "$r" "1"
+ok "refusal names the allow-list" grep -q "mergeStateStatus='NEW_STATE' (merges only on CLEAN or HAS_HOOKS)" <<<"$out"
+eq "only the HAS_HOOKS PR was merged" "$(cat "$FAKE_GH/merged.log")" "o/r 31"
 
 # merge-queue (window mode, verified gate)
 : > "$FAKE_GH/merged.log"
@@ -114,6 +124,39 @@ eq "malformed queue lines merge nothing" "$(cat "$FAKE_GH/merged.log")" ""
 ok "malformed lines are reported" grep -q "SKIP malformed queue line" <<<"$out"
 printf 'o/q 10 %s\n' "$SHA" > "$TMP/state/queue.txt"
 
+# VERIFY_FROM must be owner/repo=N: a garbage N used to make `-gt` error, skipping the VERIFIED check.
+rm -f "$TMP/state/post-merge.sh"; echo agent > "$TMP/tier"
+: > "$FAKE_GH/merged.log"; pr o/q 12 OPEN CLEAN 3 0 0; printf 'o/q 12 %s\n' "$SHA" > "$TMP/state/queue.txt"
+out=$(VERIFY_FROM="o/q=abc" /bin/bash "$ROOT/bin/merge-queue.sh" 2>&1); r=$?
+eq "VERIFY_FROM with a non-number stops the queue" "$r" "1"
+eq "VERIFY_FROM garbage merges nothing unverified" "$(cat "$FAKE_GH/merged.log")" ""
+ok "says which VERIFY_FROM entry is bad" grep -q "bad VERIFY_FROM entry 'o/q=abc'" <<<"$out"
+rc 1 "VERIFY_FROM with an empty number stops" env VERIFY_FROM="o/q=" /bin/bash "$ROOT/bin/merge-queue.sh"
+rc 1 "VERIFY_FROM '*' stops" env VERIFY_FROM="*" /bin/bash "$ROOT/bin/merge-queue.sh"
+VERIFY_FROM="x/y=1 o/q=12" /bin/bash "$ROOT/bin/merge-queue.sh" >/dev/null 2>&1
+eq "a valid VERIFY_FROM still grandfathers PRs at or below N" "$(cat "$FAKE_GH/merged.log")" "o/q 12"
+# The queue is read on fd 3: a gh that drains stdin must not swallow the remaining queue lines.
+: > "$FAKE_GH/merged.log"; pr o/q 10 OPEN CLEAN 3 0 0 "VERIFIED $SHA"; pr o/q 15 OPEN CLEAN 3 0 0 "VERIFIED $SHA"
+printf 'o/q 10 %s\no/q 15 %s\n' "$SHA" "$SHA" > "$TMP/state/queue.txt"; printf 'o/q 10 %s\no/q 15 %s\n' "$SHA" "$SHA" > "$TMP/state/verified.txt"
+FAKE_GH_EAT_STDIN=1 /bin/bash "$ROOT/bin/merge-queue.sh" >/dev/null 2>&1 </dev/null
+eq "a stdin-reading gh doesn't eat queue lines" "$(cat "$FAKE_GH/merged.log")" "$(printf 'o/q 10\no/q 15')"
+printf 'o/q 10 %s\n' "$SHA" > "$TMP/state/queue.txt"; printf 'o/q 10 %s\n' "$SHA" > "$TMP/state/verified.txt"
+# The private copy is removed on exit, on success and on a STOP.
+mkdir -p "$TMP/qtmp"; : > "$FAKE_GH/merged.log"; pr o/q 10 OPEN CLEAN 3 0 0 "VERIFIED $SHA"
+TMPDIR="$TMP/qtmp" /bin/bash "$ROOT/bin/merge-queue.sh" >/dev/null 2>&1
+TMPDIR="$TMP/qtmp" MERGE_STATE="$TMP/empty" /bin/bash "$ROOT/bin/merge-queue.sh" >/dev/null 2>&1
+eq "the queue ran from its copy" "$(cat "$FAKE_GH/merged.log")" "o/q 10"
+eq "no temp copy left behind" "$(ls "$TMP/qtmp")" ""
+# VERIFIER_LOGIN: only that login's VERIFIED comment counts (case-insensitive, as GitHub logins are).
+: > "$FAKE_GH/merged.log"; pr o/q 10 OPEN CLEAN 3 0 0
+jq --arg b "VERIFIED $SHA" '.comments=[{author:{login:"lane-bot"},body:$b}]' "$FAKE_GH/o_q-10.json" > "$TMP/x" && mv "$TMP/x" "$FAKE_GH/o_q-10.json"
+out=$(VERIFIER_LOGIN=verifier-bot /bin/bash "$ROOT/bin/merge-queue.sh" 2>&1)
+eq "VERIFIER_LOGIN: a VERIFIED comment by another login doesn't count" "$(cat "$FAKE_GH/merged.log")" ""
+ok "says whose VERIFIED comment it waits for" grep -q "awaiting 'VERIFIED $SHA' comment from verifier-bot" <<<"$out"
+jq --arg b "VERIFIED $SHA" '.comments+=[{author:{login:"Verifier-Bot"},body:$b}]' "$FAKE_GH/o_q-10.json" > "$TMP/x" && mv "$TMP/x" "$FAKE_GH/o_q-10.json"
+VERIFIER_LOGIN=verifier-bot /bin/bash "$ROOT/bin/merge-queue.sh" >/dev/null 2>&1
+eq "VERIFIER_LOGIN: the verifier's own comment merges" "$(cat "$FAKE_GH/merged.log")" "o/q 10"
+
 # Human-review tier
 rm -f "$TMP/state/post-merge.sh"; echo "completed success" > "$FAKE_GH/main-ci"
 qrun() { : > "$FAKE_GH/merged.log"; pr o/q 10 OPEN CLEAN 3 0 0 "VERIFIED $SHA"; /bin/bash "$ROOT/bin/merge-queue.sh" 2>&1; }
@@ -134,14 +177,61 @@ qrun >/dev/null
 eq "approval at the exact sha merges" "$(cat "$FAKE_GH/merged.log")" "o/q 10"
 rc 2 "human-approve refuses a short sha" env MERGE_STATE=$TMP/state /bin/bash "$ROOT/bin/human-approve.sh" o/q 10 abc
 rm "$TMP/state/human-approved.txt"
-# A GitHub approval counts only from a login in HUMAN_REVIEWERS, at the head commit.
-add_review() { jq --arg w "$1" --arg c "$2" '.reviews=[{state:"APPROVED",author:{login:$w},commit:{oid:$c}}]' "$FAKE_GH/o_q-10.json" > "$TMP/x" && mv "$TMP/x" "$FAKE_GH/o_q-10.json"; }
-: > "$FAKE_GH/merged.log"; pr o/q 10 OPEN CLEAN 3 0 0 "VERIFIED $SHA"; add_review agent-bot "$SHA"
-HUMAN_REVIEWERS="alice" /bin/bash "$ROOT/bin/merge-queue.sh" >/dev/null 2>&1
+# With HUMAN_REVIEWERS set, a GitHub review (REST: user.login, commit_id) counts only from a listed login, at the
+# head commit, and only if that login's latest decision is APPROVED. The fake splits reviews over two pages.
+add_review() {  # add_review [LOGIN STATE COMMIT]... (oldest first)
+  local r='[]'
+  while [ $# -ge 3 ]; do r=$(jq -c --arg w "$1" --arg s "$2" --arg c "$3" '. + [{state:$s,user:{login:$w},commit_id:$c}]' <<<"$r"); shift 3; done
+  jq --argjson r "$r" '.api_reviews=$r' "$FAKE_GH/o_q-10.json" > "$TMP/x" && mv "$TMP/x" "$FAKE_GH/o_q-10.json"
+}
+hq() { : > "$FAKE_GH/merged.log"; pr o/q 10 OPEN CLEAN 3 0 0 "VERIFIED $SHA"; add_review "$@"; /bin/bash "$ROOT/bin/merge-queue.sh" 2>&1; }
+OLD=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+export HUMAN_REVIEWERS="bob, alice"
+hq agent-bot APPROVED "$SHA" >/dev/null
 eq "approval by a non-listed login doesn't count" "$(cat "$FAKE_GH/merged.log")" ""
-: > "$FAKE_GH/merged.log"; pr o/q 10 OPEN CLEAN 3 0 0 "VERIFIED $SHA"; add_review alice "$SHA"
-HUMAN_REVIEWERS="alice" /bin/bash "$ROOT/bin/merge-queue.sh" >/dev/null 2>&1
-eq "approval by a listed human at head merges" "$(cat "$FAKE_GH/merged.log")" "o/q 10"
+hq alice APPROVED "$OLD" >/dev/null
+eq "a listed login's approval at an OLDER commit doesn't count" "$(cat "$FAKE_GH/merged.log")" ""
+hq alice APPROVED "$SHA" alice CHANGES_REQUESTED "$SHA" >/dev/null
+eq "an approval later replaced by changes-requested doesn't count" "$(cat "$FAKE_GH/merged.log")" ""
+hq agent-bot COMMENTED "$SHA" Alice APPROVED "$SHA" >/dev/null
+eq "approval by a listed human at head merges (second page, any case)" "$(cat "$FAKE_GH/merged.log")" "o/q 10"
+out=$(MERGE_STATE=$TMP/state /bin/bash "$ROOT/bin/human-approve.sh" o/q 10 "$SHA" "read auth")
+ok "human-approve warns its record won't count under HUMAN_REVIEWERS" grep -q "needs your APPROVED GitHub review" <<<"$out"
+out=$(hq)
+eq "a local record does NOT count when HUMAN_REVIEWERS is set" "$(cat "$FAKE_GH/merged.log")" ""
+ok "says which GitHub review it needs" grep -q "needs an APPROVED GitHub review at $SHA by one of: bob, alice" <<<"$out"
+export ALLOW_LOCAL_APPROVALS=1; hq >/dev/null; unset ALLOW_LOCAL_APPROVALS
+eq "ALLOW_LOCAL_APPROVALS=1 lets the local record count" "$(cat "$FAKE_GH/merged.log")" "o/q 10"
+# human-queue applies the same rule, so a PR the queue won't merge still shows as waiting.
+pr o/q 10 OPEN CLEAN 3 0 0; export FAKE_OPEN_PRS=10
+out=$(/bin/bash "$ROOT/bin/human-queue.sh" o/q 2>&1)
+ok "human-queue lists a local-only approval as waiting under HUMAN_REVIEWERS" grep -q "1 PR(s) waiting" <<<"$out"
+add_review agent-bot APPROVED "$SHA"; out=$(/bin/bash "$ROOT/bin/human-queue.sh" o/q 2>&1)
+ok "human-queue ignores an approval by a non-listed login" grep -q "1 PR(s) waiting" <<<"$out"
+add_review alice APPROVED "$SHA"; out=$(/bin/bash "$ROOT/bin/human-queue.sh" o/q 2>&1)
+ok "human-queue counts a listed GitHub approval at head" grep -q "0 PR(s) waiting" <<<"$out"
+unset HUMAN_REVIEWERS; add_review
+out=$(/bin/bash "$ROOT/bin/human-queue.sh" o/q 2>&1)
+ok "human-queue: solo mode counts the local record" grep -q "0 PR(s) waiting" <<<"$out"
+rm "$TMP/state/human-approved.txt"
+# --notify: osascript (macOS), else notify-send, else stderr. PATH holds only what the script needs.
+NB="$TMP/nbin"; mkdir -p "$NB"
+for b in bash dirname grep awk sort jq cat sed tr mktemp mv; do ln -sf "$(type -P $b)" "$NB/$b"; done
+ln -sf "$TMP/bin/gh" "$NB/gh"
+nq() { PATH="$NB" /bin/bash "$ROOT/bin/human-queue.sh" --notify o/q 2>&1 >/dev/null; }
+eq "notify with neither tool: one line on stderr" "$(nq)" "human-queue: 1 PR(s) need your review (no osascript or notify-send to notify with)"
+printf '#!/bin/bash\necho "notify-send $*" >> %s/notify.log\n' "$TMP" > "$NB/notify-send"; chmod +x "$NB/notify-send"
+nq >/dev/null; eq "notify falls back to notify-send without osascript" "$(cat "$TMP/notify.log")" "notify-send Human review queue 1 PR(s) need your review"
+printf '#!/bin/bash\necho "osascript $*" >> %s/notify.log\n' "$TMP" > "$NB/osascript"; chmod +x "$NB/osascript"
+: > "$TMP/notify.log"; nq >/dev/null
+ok "notify prefers osascript when present (macOS)" grep -q '^osascript -e display notification "1 PR(s) need your review"' "$TMP/notify.log"
+eq "and only osascript" "$(wc -l < "$TMP/notify.log" | tr -d ' ')" "1"
+unset FAKE_OPEN_PRS
+# human-sample: the tier check must not eat the PR list it is reading.
+echo agent > "$TMP/tier"; export FAKE_MERGED_PRS="1 2 3"
+n=$(TIER_EAT_STDIN=1 /bin/bash "$ROOT/bin/human-sample.sh" 5 7 o/s </dev/null | grep -c "spot-check")
+eq "human-sample sees every merged PR even if the tier check reads stdin" "$n" "3"
+unset FAKE_MERGED_PRS; echo human > "$TMP/tier"
 echo none > "$TMP/tier"; qrun >/dev/null
 eq "repo without a policy file: tiering off (today's behaviour)" "$(cat "$FAKE_GH/merged.log")" "o/q 10"
 # Review finding: a file NAMED like the no-policy reason must not switch the gate off.

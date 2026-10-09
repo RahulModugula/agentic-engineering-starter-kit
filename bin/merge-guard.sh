@@ -1,7 +1,7 @@
 #!/bin/bash
 # merge-guard.sh REPO PR SHA [MIN_CHECKS]
 # Squash-merges REPO#PR only when its head is SHA, every check completed successfully (at least MIN_CHECKS), and
-# GitHub reports it mergeable. Exit 0 = merged and read back as MERGED; 1 = refused or did not land.
+# GitHub's mergeStateStatus is CLEAN or HAS_HOOKS. Exit 0 = merged and read back as MERGED; 1 = refused or did not land.
 # GH_ACCOUNT (optional): the gh account whose token to use, for machines with several logged-in accounts.
 # Moved from a session scratchpad (2026-10-09); behaviour unchanged except POLL_TRIES/POLL_SLEEP for tests.
 R=$1; P=$2; SHA=$3; MIN=${4:-3}
@@ -27,8 +27,9 @@ echo "$R#$P head=${head:0:8} tot=$tot ok=$ok pend=$pend $(jq -r '.mergeable+" "+
 ms=$(jq -r .mergeStateStatus <<<"$j")
 # GitHub computes mergeability lazily: UNKNOWN right after a query means "not computed yet", so re-poll.
 for _ in $(seq 1 12); do [ "$ms" = UNKNOWN ] || break; sleep "${POLL_RECHECK:-5}"; ms=$(gh pr view "$P" --repo "$R" --json mergeStateStatus -q .mergeStateStatus); done
-# UNSTABLE = a non-required check failed; DRAFT = not ready. Both refuse.
-case "$ms" in DIRTY|BLOCKED|BEHIND|UNKNOWN|UNSTABLE|DRAFT) echo "GUARD-REFUSED: mergeStateStatus=$ms"; exit 1;; esac
+# Allow-list: only CLEAN or HAS_HOOKS merge. Everything else refuses, including UNSTABLE (a non-required check
+# failed), DRAFT, a state still UNKNOWN after the re-poll, an empty one, and any state GitHub adds later.
+case "$ms" in CLEAN|HAS_HOOKS) ;; *) echo "GUARD-REFUSED: mergeStateStatus='$ms' (merges only on CLEAN or HAS_HOOKS)"; exit 1;; esac
 if [[ $head == "$SHA" && $pend == 0 && $ok == "$tot" && $tot -ge $MIN ]]; then
   gh pr merge "$P" --repo "$R" --squash --match-head-commit "$head" >/dev/null 2>&1; sleep "${POLL_RECHECK:-4}"
   res=$(gh pr view "$P" --repo "$R" --json state,mergeCommit --jq '"\(.state) \(.mergeCommit.oid)"'); echo "$res"

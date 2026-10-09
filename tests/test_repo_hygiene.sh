@@ -12,7 +12,10 @@ done
 eq "every script is executable with a shebang" "${bad:-none}" "none"
 crlf=$(grep -rlI $'\r' --exclude-dir=.git . 2>/dev/null | head -3)
 eq "no CRLF line endings" "${crlf:-none}" "none"
-for j in claude/settings.json; do ok "$j parses" jq -e . "$j"; done
+for j in claude/settings.json kit/claude/settings.json; do if [ -f "$j" ]; then ok "$j parses" jq -e . "$j"; fi; done
+# Workflow files: a step glued onto the previous line (a lost newline) would turn the CI run red.
+glued=$(grep -nE '[^[:space:]][[:space:]]+- (name|uses|run):' .github/workflows/*.yml company/.github/workflows/*.yml 2>/dev/null | head -3)
+eq "no workflow step is glued onto the line before it" "${glued:-none}" "none"
 # Hooks must work on anyone's machine: no absolute home paths (they fail silently elsewhere).
 abs=$(grep -lE '/(Users|home)/[a-z]' claude/hooks/* claude/lib/* claude/guard.conf 2>/dev/null | head -3)
 eq "no hook, lib or guard.conf hardcodes a home directory" "${abs:-none}" "none"

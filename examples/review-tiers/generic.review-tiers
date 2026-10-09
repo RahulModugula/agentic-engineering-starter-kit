@@ -28,6 +28,10 @@ human terraform/**
 human .github/**
 human Dockerfile*
 human **/*.sql
+# These change how tests run or how the agent behaves, so a test-tier path can't loosen them
+human **/conftest.py
+human **/.claude/**
+human **/CLAUDE.md
 
 # An agent-tier file that starts using core code needs a person
 escalate (import|from|require\().*\b(auth|db|database|secrets?|iam|billing|payments?)\b

@@ -1,7 +1,7 @@
 #!/bin/bash
 # go.sh: record the OWNER's go for one exact run of an ops script (change 4, off by default).
 # Run it yourself with a leading `!` in any Claude pane (a `!` line is your input, not a tool call):
-#   ! ~/agentic-starter-kit/bin/go.sh path/to/script.sh [--ttl-hours 12] [--env "VAR1 VAR2"] [--files "a.py b.py"] -- [script args]
+#   ! ~/.claude/kit/bin/go.sh path/to/script.sh [--ttl-hours 12] [--env "VAR1 VAR2"] [--files "a.py b.py"] -- [script args]
 # It prints what the go covers and writes $GO_DIR/<fingerprint>.go. The script calls `require_go` (opslib.sh) and
 # runs only if a go exists for the SAME script bytes, args, listed env values and listed source files.
 # A go is consumed by require_go (one run) unless the script sets GO_REUSE=1.

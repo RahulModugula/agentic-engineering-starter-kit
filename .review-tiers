@@ -12,3 +12,7 @@ human install.sh
 human tests/test_guardhook.sh
 human tests/test_review_tier.sh
 human tests/test_merge_tools.sh
+# These define what "tested" means: mutation targets, the mutation runner, and fixture data.
+human tests/mutants.txt
+human tests/mutate.py
+human tests/fixtures/**

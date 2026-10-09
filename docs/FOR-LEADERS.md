@@ -5,9 +5,9 @@ Read in five minutes; details are in `docs/ARCHITECTURE.md`.
 
 ## What it gives you
 
-- **More output from the same people.** One engineer directs several AI sessions at once: a coordinator plans,
+- **More output from the same people, as the aim.** One engineer directs several AI sessions at once: a coordinator plans,
   lanes build in isolated copies of the repo, a verifier reviews every change. People spend their time on
-  direction, review and the hard problems.
+  direction, review and the hard problems. Measure it in your own pilot (below) before counting on it.
 - **Speed without losing control.** UI, tests, benchmarks and docs can ship on AI review alone. Core code (auth,
   data access and privacy, money, infrastructure, schemas, deploys) **waits for a person**, who sees exactly which
   files to read. You choose what counts as core, per repo, in one policy file.
@@ -40,11 +40,43 @@ Each step is a one-line policy change with a test behind it, so it's easy to mak
 
 ## What it costs
 
-- **Licences:** each person needs a Claude plan that includes Claude Code (Pro or higher; check claude.com/pricing).
-  Running several sessions at once uses more of a plan's allowance, so heavy users typically need a higher tier.
-- **Setup:** about an hour per person with `START-FROM-SCRATCH.md`; installing is reversible with one command.
-- **Ongoing:** reviewing the core-code queue. That time is the point: it keeps a person accountable for what
+The kit itself is free and needs no new service. The cost is the Claude plan, setup time and review time.
+
+| Plan (all include Claude Code) | Price per person per month | Fits |
+|---|---|---|
+| Pro | $20 monthly, or $17 billed yearly | Trying it; one or two sessions at a time |
+| Max | from $100 | One person running several sessions most days |
+| Team, Standard seat (2+ people) | $25 monthly, or $20 billed yearly | A team with light use |
+| Team, Premium seat (2+ people) | $125 monthly, or $100 billed yearly | A team running parallel sessions daily |
+| Enterprise | $20 per seat billed yearly, **plus usage** that scales with model and task | Large organisations needing central controls |
+
+Prices from [claude.com/pricing](https://claude.com/pricing), read 2026-10-09; check before budgeting. Running
+several sessions at once uses a plan's allowance faster, so people who work this way usually need Max or a
+Premium seat.
+
+- **Setup:** about an hour per person with `START-FROM-SCRATCH.md`; the install is undone with one command.
+- **Ongoing:** reading the core-code review queue. That time is deliberate: a person stays accountable for what
   matters.
+- **Payback, as a way to judge it:** a seat pays for itself if it saves its holder more hours a month than its
+  price buys of their time. At a loaded cost of $100 an hour, a $125 seat needs about 1.25 saved hours a month.
+  Measure the saving in your pilot (below) rather than assuming it.
+
+### Keeping spend in check
+
+- `/usage` in a session, and the status line, show how much of the plan is used.
+- On usage-billed plans, set spend limits in the admin console.
+- Unattended (scripted) runs can be capped per run: `claude -p --max-turns N --max-budget-usd X`. These flags
+  apply in print mode only, and the dollar figure is Claude Code's estimate, not an invoice
+  ([CLI reference](https://code.claude.com/docs/en/cli-reference), read 2026-10-09).
+- The kit's rule that sessions stop after three failed check runs keeps a stuck session from burning allowance.
+
+### A two-week pilot checklist
+
+1. Pick one repo and one or two people. Record baseline numbers with `bin/measure.py`.
+2. Install with `START-FROM-SCRATCH.md`; turn on review tiers with `default human`.
+3. Run real tasks for two weeks. Each week, sample AI-only merges with `bin/human-sample.sh`.
+4. Compare: merge wait, PRs verified first time, fixes needed after merge, hours saved (ask the people), plan usage.
+5. Decide: stop, continue, or widen to the team, on those numbers.
 
 ## Risks, plainly
 

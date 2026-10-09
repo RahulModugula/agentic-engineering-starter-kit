@@ -4,7 +4,7 @@
 # Needs Docker. Proves the hooks and tools work on Linux (GNU tools, no BSD date/sed), not just macOS.
 set -euo pipefail
 repo=$(cd "${1:-$(dirname "$0")/..}" && pwd)
-docker run --rm -v "$repo:/src:ro" ubuntu:24.04 bash -c '
+docker run --rm --init -v "$repo:/src:ro" ubuntu:24.04 bash -c '
   set -e
   apt-get update -qq >/dev/null
   DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git jq zsh python3 perl file make shellcheck >/dev/null

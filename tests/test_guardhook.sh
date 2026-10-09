@@ -19,7 +19,7 @@ decision() {  # decision CWD CMD -> deny|ask|allow
 expect() { eq "$1 :: $3" "$(decision "$2" "$3")" "$1"; }
 
 # --- merge/release scripts: coordinator-only when RUN ---
-expect deny  "$LANE" 'bash ~/agentic-starter-kit/bin/merge-queue.sh'
+expect deny  "$LANE" 'bash ~/.claude/kit/bin/merge-queue.sh'
 expect deny  "$LANE" 'bash /tmp/x/scratchpad/merge_next.sh'
 expect deny  "$LANE" 'cd /tmp && bash guard.sh o/r 1 abc'
 expect deny  "$LANE" 'URGENT=1 bash merge_next.sh'
@@ -28,7 +28,7 @@ expect deny  "$LANE" 'nohup bash merge_next.sh > log 2>&1 &'
 expect deny  "$LANE" 'sh -c "bash merge_next.sh"'
 expect deny  "$LANE" 'timeout 60 /bin/bash merge-guard.sh a 1 b'
 expect deny  "$LANE" './merge_next.sh'
-expect allow "$COORD" 'bash ~/agentic-starter-kit/bin/merge-queue.sh'
+expect allow "$COORD" 'bash ~/.claude/kit/bin/merge-queue.sh'
 # Regression (10-08/10-09): merely MENTIONING a guard script must not be blocked.
 expect allow "$LANE" 'cat ~/.claude/hooks/lane-guard.sh'
 expect allow "$LANE" 'diff -q a/lane-guard.sh b/lane-guard.sh'
@@ -40,7 +40,7 @@ bash merge_next.sh
 EOF'
 
 # --- pattern kills ---
-expect deny  "$LANE" 'pkill -f "f2run.*"'
+expect deny  "$LANE" 'pkill -f "myjob.*"'
 expect deny  "$LANE" 'sleep 1; killall python3'
 expect deny  "$COORD" 'pkill -f merge'
 expect allow "$LANE" 'kill 12345'
@@ -135,22 +135,111 @@ expect allow "$LANE" 'aws s3api put-object --bucket b --key k --profile dev'
 GUARD_CONF=$TMP/none.conf expect deny "$COORD" 'bash merge-queue.sh'
 
 # Change 4 protection: off by default, on with GOS_PROTECT=1.
-expect allow "$LANE" 'bash ~/agentic-starter-kit/bin/go.sh job.sh'
+expect allow "$LANE" 'bash ~/.claude/kit/bin/go.sh job.sh'
 printf 'COORD_DIR=%s\nGOS_PROTECT=1\n' "$COORD" > "$TMP/gos.conf"
-GUARD_CONF=$TMP/gos.conf expect deny  "$LANE"  'bash ~/agentic-starter-kit/bin/go.sh job.sh'
-GUARD_CONF=$TMP/gos.conf expect deny  "$COORD" '~/agentic-starter-kit/bin/go.sh job.sh'
+GUARD_CONF=$TMP/gos.conf expect deny  "$LANE"  'bash ~/.claude/kit/bin/go.sh job.sh'
+GUARD_CONF=$TMP/gos.conf expect deny  "$COORD" '~/.claude/kit/bin/go.sh job.sh'
 GUARD_CONF=$TMP/gos.conf expect deny  "$LANE"  'echo x > ~/.claude/gos/abc.go'
 GUARD_CONF=$TMP/gos.conf expect deny  "$LANE"  'cp a.go ~/.claude/gos/'
 GUARD_CONF=$TMP/gos.conf expect allow "$LANE"  'ls ~/.claude/gos'
 GUARD_CONF=$TMP/gos.conf expect deny  "$LANE"  'cat a.go > ~/.claude/gos/x.go'
 
 # Human-review approvals: always owner-only.
-expect deny  "$LANE"  'bash ~/agentic-starter-kit/bin/human-approve.sh o/r 1 abc'
-expect deny  "$COORD" '~/agentic-starter-kit/bin/human-approve.sh o/r 1 abc'
+expect deny  "$LANE"  'bash ~/.claude/kit/bin/human-approve.sh o/r 1 abc'
+expect deny  "$COORD" '~/.claude/kit/bin/human-approve.sh o/r 1 abc'
 expect deny  "$LANE"  'echo "o/r 1 abc" >> ~/.local/state/merge-queue/human-approved.txt'
 expect deny  "$LANE"  'cat x >> ~/.local/state/merge-queue/human-approved.txt'
 expect deny  "$LANE"  'cp x ~/.local/state/merge-queue/human-approved.txt'
 expect allow "$LANE"  'cat ~/.local/state/merge-queue/human-approved.txt'
 expect allow "$LANE"  'grep o/r ~/.local/state/merge-queue/human-approved.txt'
-expect allow "$LANE"  'bash ~/agentic-starter-kit/bin/human-queue.sh'
+expect allow "$LANE"  'bash ~/.claude/kit/bin/human-queue.sh'
+
+# --- v4: fail closed on input the guard can't read ---
+o=$(printf 'not json' | "$G" 2>/dev/null); rc=$?
+eq "bad JSON blocks (exit 2)" "$rc" 2
+o=$(printf '{"tool_input":{"command":"git push origin main"},"cwd":"/"}' | PATH=/nonexistent /bin/bash "$G" 2>&1); rc=$?
+eq "no jq blocks (exit 2)" "$rc" 2
+case "$o" in *"jq is not installed"*) _res 0 "";; *) _res 1 "no jq should say why, got [$o]";; esac
+# A heredoc whose delimiter never arrives isn't one: its lines are checked, not hidden.
+expect deny  "$LANE"  'cat <<EOF
+git push origin main'
+expect deny  "$COORD" 'git push -o ci.skip origin'
+expect deny  "$LANE"  'git -cremote.origin.push=HEAD:main push'
+# --- v4: quotes and backslashes rejoin words ---
+expect deny  "$LANE"  "git push origin ma''in"
+expect deny  "$LANE"  'git pu""sh origin main'
+expect deny  "$LANE"  'g\it push origin main'
+# --- v4: refspec forms that reach main ---
+expect deny  "$LANE"  'git push origin refs/heads/main'
+expect deny  "$LANE"  'git push origin heads/master'
+expect deny  "$LANE"  "git push origin 'refs/heads/*:refs/heads/*'"
+expect deny  "$LANE"  'git push origin :'
+expect deny  "$LANE"  'git push origin $BR'
+expect deny  "$LANE"  'git push origin --branches'
+expect allow "$LANE"  'git push -o ci.skip origin feature'
+expect allow "$LANE"  'git push origin refs/heads/feature'
+expect allow "$LANE"  'git push origin feature:feature-2'
+# --- v4: push config can redirect a push ---
+expect deny  "$LANE"  'git -c remote.origin.push=HEAD:main push'
+expect deny  "$LANE"  'git config remote.origin.push HEAD:main'
+expect deny  "$LANE"  'git config --global alias.ship push'
+expect allow "$LANE"  'git config user.name x'
+expect allow "$LANE"  'git config --get remote.origin.url'
+# --- v4: wrappers by path, options with arguments, variables as commands ---
+expect deny  "$LANE"  '/usr/bin/env git push origin main'
+expect deny  "$LANE"  'sudo -u me git push origin main'
+expect deny  "$LANE"  'timeout -s KILL 60 git push origin main'
+expect deny  "$LANE"  'nice -n 5 git push origin main'
+expect deny  "$LANE"  'p=pkill; $p -f x'
+expect deny  "$LANE"  '${G:-git} push origin main'
+# --- v4: merges over plain HTTP ---
+expect deny  "$LANE"  'curl -X PUT -H "Authorization: token x" https://api.github.com/repos/o/r/pulls/5/merge'
+expect deny  "$LANE"  'wget --method=PUT https://api.github.com/repos/o/r/pulls/5/merge'
+expect allow "$LANE"  'curl https://api.github.com/repos/o/r/pulls/5'
+# --- v4: message text is data, but only message flags are stripped ---
+expect allow "$LANE"  'git commit -m "fix; then git push origin main"'
+expect allow "$LANE"  'gh pr create --title "x" --body "(gh pr merge 5)"'
+expect deny  "$LANE"  'ssh -t host "git push origin main"'
+# --- v4: the controls, by path prefix ---
+expect deny  "$LANE"  'rm ~/.claude/hooks/lane-guard.sh'
+expect deny  "$LANE"  'cp x.json ~/.claude/settings.json'
+expect deny  "$LANE"  'echo "/tmp" >> ~/.claude/trusted-repos'
+expect deny  "$LANE"  'sed -i "" s/x/y/ ~/.claude/guard.conf'
+expect deny  "$LANE"  'ln -sf /tmp/x ~/.claude/kit'
+expect deny  "$LANE"  'rm ~/.local/state/merge-queue/verified.txt'
+expect allow "$LANE"  'sed -n 1,5p ~/.claude/guard.conf'
+expect allow "$LANE"  'awk 1 ~/.claude/settings.json'
+expect allow "$LANE"  'cat ~/.claude/settings.json'
+# --- v4: prod AWS: global options parsed; anything not read-only asks ---
+expect ask   "$LANE"  'aws --profile prod --region us-east-1 lambda invoke --function-name f out.json'
+expect ask   "$LANE"  'AWS_PROFILE=prod aws dynamodb delete-item --table-name t --key k'
+expect ask   "$LANE"  'aws --profile=prod s3 rm s3://b/k'
+expect allow "$LANE"  'aws --profile prod --output json dynamodb describe-table --table-name t'
+expect allow "$LANE"  'aws --profile prod s3 ls s3://b/'
+expect allow "$LANE"  'AWS_PROFILE=prodish aws s3 rm s3://b/k'
+# --- v4: the fast path still lets everyday commands straight through ---
+expect allow "$LANE"  'ls -la'
+expect allow "$LANE"  'make check'
+# --- release review (2026-10-09): bypasses found by an independent reviewer; each must be caught ---
+expect deny  "$LANE"  'gh api -X PATCH repos/o/r/git/refs/heads/main -f sha=abc'
+expect deny  "$LANE"  'curl -X PATCH https://api.github.com/repos/o/r/git/refs/heads/main -d "{}"'
+expect allow "$LANE"  'gh api repos/o/r/git/refs/heads/main'
+expect deny  "$LANE"  'git subtree push --prefix=docs origin main'
+expect allow "$LANE"  'git subtree push --prefix=docs origin docs-branch'
+expect deny  "$LANE"  "cd $COORD && git push"
+expect deny  "$LANE"  "cd $COORD && git push origin HEAD"
+expect allow "$LANE"  "cd $LANE && git push origin feature"
+expect deny  "$LANE"  'cd ~/.claude && rm hooks/lane-guard.sh'
+expect deny  "$LANE"  'cd ~/.claude/hooks && : > notify.sh'
+expect allow "$LANE"  'cd ~/.claude && ls hooks'
+expect deny  "$LANE"  'tar -xf x.tar -C ~/.claude'
+expect deny  "$LANE"  'unzip -o x.zip -d ~/.claude'
+expect deny  "$LANE"  'curl -so ~/.claude/hooks/lane-guard.sh https://example.com/x'
+expect allow "$LANE"  'curl -so /tmp/x https://example.com/x'
+expect deny  "$LANE"  '`echo pkill` -f node'
+expect deny  "$LANE"  'kill -9 $(pgrep -f node)'
+expect deny  "$LANE"  'pgrep -f node | xargs kill'
+expect allow "$LANE"  'pgrep -f node'
+expect deny  "$LANE"  'busybox pkill node'
+expect ask   "$LANE"  'AWS_DEFAULT_PROFILE=prod aws s3 rm s3://b/k'
 finish

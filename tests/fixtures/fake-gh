@@ -1,9 +1,13 @@
 #!/bin/bash
 # Fake `gh` for merge tests. Behaviour comes from files in $FAKE_GH (one per PR: <repo-with-_>-<pr>.json holding
-# {"state","headRefOid","statusCheckRollup","mergeable","mergeStateStatus","comments":[...]}), plus:
+# {"state","headRefOid","statusCheckRollup","mergeable","mergeStateStatus","comments":[...],"api_reviews":[...]}), plus:
 #   $FAKE_GH/main-ci       "completed success" etc. for `gh run list`
-#   $FAKE_GH/last-merge    ISO time for `gh pr list --state merged`
+#   FAKE_LAST_MERGE        ISO time for `gh pr list --state merged`
+#   FAKE_OPEN_PRS / FAKE_MERGED_PRS  space-separated PR numbers for `gh pr list --state open` / `--search`
+#   FAKE_GH_EAT_STDIN=1    read all of stdin first, like gh/ssh can (proves callers don't feed it their input)
+# `gh api repos/O/R/pulls/N/reviews --paginate --slurp` returns .api_reviews (REST shape) split into two pages.
 # Every merge is appended to $FAKE_GH/merged.log; `gh pr merge` flips the PR's state to MERGED.
+[ -n "${FAKE_GH_EAT_STDIN:-}" ] && cat >/dev/null
 args="$*"; repo=""; pr=""
 while [ $# -gt 0 ]; do case "$1" in -R|--repo) repo=$2; shift 2;; [0-9]*) [ -z "$pr" ] && pr=$1; shift;; *) shift;; esac; done
 f="$FAKE_GH/$(echo "$repo" | tr / _)-$pr.json"
@@ -12,8 +16,14 @@ case "$args" in
   "auth token"*) echo fake-token;;
   "pr view"*) q=$(jqarg); if [ -n "$q" ]; then jq -r "$q" "$f"; else cat "$f"; fi;;
   "pr merge"*) echo "$repo $pr" >> "$FAKE_GH/merged.log"; tmp=$(mktemp); jq '.state="MERGED"|.mergeCommit={oid:"m1"}' "$f" > "$tmp" && mv "$tmp" "$f";;
+  "pr list"*"--state open"*) printf '%s\n' ${FAKE_OPEN_PRS:-};;
+  "pr list"*"--search"*) printf '%s\n' ${FAKE_MERGED_PRS:-};;
   "pr list"*) echo "${FAKE_LAST_MERGE:-}";;
+  "pr edit"*) echo "$args" >> "$FAKE_GH/edit.log";;
   "run list"*) echo "$args" >> "$FAKE_GH/run-list.log"; cat "$FAKE_GH/main-ci" 2>/dev/null || echo "completed success";;
   "api repos/"*"/commits/main"*) echo "${FAKE_MAIN_SHA:-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}";;
+  "api repos/"*"/pulls/"*"/reviews"*)
+    rf="$FAKE_GH/$(printf '%s' "$args" | sed -nE 's#^api repos/([^/]+)/([^/]+)/pulls/([0-9]+)/reviews.*#\1_\2-\3#p').json"
+    jq -c '(.api_reviews // []) as $r | [$r[:1], $r[1:]]' "$rf";;
   *) echo "fake-gh: unhandled: $args" >&2; exit 1;;
 esac

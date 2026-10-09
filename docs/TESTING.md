@@ -8,11 +8,11 @@ easy path and gamed tests hard. Sources, all read 2026-10-09, are in `docs/resea
 
 1. **Write the failing test first, and watch it fail for an assertion reason.** An import error doesn't count.
    Anthropic's guidance: "write a failing test that reproduces the issue, then fix it."
-2. **Lock the tests** for the implement step: `! $KIT/bin/tests-lock.sh on`. While `.claude/tests-locked` exists,
+2. **Lock the tests** for the implement step: `! ~/.claude/kit/bin/tests-lock.sh on`. While `.claude/tests-locked` exists,
    Claude can't edit test files, and sessions can't lift the lock. Measured: read-only tests keep real
    performance while stopping agents editing tests to get green (ImpossibleBench, arXiv 2510.20270).
 3. **Implement until green.** The Stop hook won't let a turn end while your checks fail.
-4. **Unlock** (`! $KIT/bin/tests-lock.sh off`), open the PR. The verifier reviews it; the review tier flags anything
+4. **Unlock** (`! ~/.claude/kit/bin/tests-lock.sh off`), open the PR. The verifier reviews it; the review tier flags anything
    that weakened the tests.
 
 The lane role carries Anthropic's published anti-hardcoding rule: tests verify correctness and don't define the
@@ -31,7 +31,7 @@ Whatever the path, these turn a change `human` (`bin/review_tier.py`):
 
 ## Fast checks before "done": `.claude/check`
 
-In a repo you've trusted (`$KIT/bin/trust-repo.sh <repo>`, because the check runs that repo's code), the Stop hook
+In a repo you've trusted (`~/.claude/kit/bin/trust-repo.sh <repo>`, because the check runs that repo's code), the Stop hook
 runs `.claude/check` if it exists (otherwise `make check`, otherwise `npm test`).
 Keep it fast, ideally under 90 seconds, by running the tests affected by the change. The full suite runs in CI.
 
@@ -85,9 +85,37 @@ task format.
 
 ## How this kit tests itself
 
-- `make check`: over 340 test cases. Hooks are driven with the JSON Claude Code sends; GitHub is a fake `gh`; the
+- `make check`: 544 test cases (2026-10-09). Hooks are driven with the JSON Claude Code sends; GitHub is a fake `gh`; the
   installer runs in a throwaway HOME. There are no model calls and no network.
 - `tests/test_e2e.sh`: installs into a throwaway home and exercises every installed hook through its symlink.
-- `make mutate`: every safety rule is removed on purpose, and the matching test must fail (72 mutants, all
-  killed). A new rule needs a new mutant line in `tests/mutants.txt`.
-- CI (personal repo): Ubuntu and macOS. macOS runners ship bash 3.2, so every hook is written for it.
+- `make mutate`: every safety rule is removed on purpose, and the matching test must fail (174 mutants, all
+  killed, 2026-10-09). A mutant only counts as killed when a test assertion fails; a crash is reported as an error, and every
+  test file must pass unmutated first. A new rule needs a new mutant line in `tests/mutants.txt`.
+- `bash tests/linux-in-docker.sh`: the same checks on Ubuntu (GNU tools). macOS ships bash 3.2 and BSD tools, so
+  every script is written for both.
+- CI runs the tests, lint and the mutation check on every pull request.
+
+## Live check in real Claude Code (opt-in)
+
+`bash tests/live-claude.sh` proves the hooks hold inside a real `claude -p` session, not just when the tests feed
+them JSON. It is not run by `make check` or CI (the name isn't `test_*.sh`): it needs `claude` logged in and calls
+the model, about $0.11 with haiku (2026-10-09, Claude Code 2.1.280).
+
+- **Isolation:** the kit is copied to a scratch dir. Claude runs with `--setting-sources project,local` (your
+  `~/.claude/settings.json` hooks don't load) and `--settings` naming the scratch hooks by absolute path; each hook
+  runs with `HOME` set to a scratch home. Repos and their `origin` are local scratch paths. No hook writes to
+  `~/.claude` (Claude Code itself still uses your login).
+- **Only the hook stands in the way:** Claude runs in `bypassPermissions`. A control run with no hooks must let a
+  push to main land, which proves the scenarios can fail.
+- **Judged by side effects:** origin refs (`git ls-remote`), files on disk, and the hook's reason in the tool
+  result. A scenario where Claude never tried the action is a FAIL, not a pass.
+- **Scenarios:** push to main denied; push to a feature branch allowed; `pkill` denied; a write into `.claude/hooks`
+  denied; the Stop hook blocks a commit while `.claude/check` is red; `.claude/tests-locked` denies an Edit to a
+  test; a bare `git push` after a `cd` in an earlier call is judged on the branch it would really push.
+- **What it caught:** two bugs the offline tests couldn't see, both now fixed with offline tests too. A stray
+  shell error on the Stop hook's stderr made Claude Code end the turn instead of continuing, so the first block
+  didn't hold; and a blocked session rewrote `.claude/check` to `exit 0` (on a branch, the hook now runs the main
+  branch's committed check).
+- **Knobs:** `KIT_DIR` (test another build), `LIVE_MODEL` (default haiku), `LIVE_MAX_USD` (stop above it, default
+  2), `KEEP=1` (keep the scratch dir and the stream-json logs). It prints PASS/FAIL per scenario and the total cost,
+  and exits non-zero on any FAIL.

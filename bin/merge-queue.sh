@@ -14,18 +14,43 @@
 #   MERGE_MODE=green  (change 5, off by default: a repo opens when its main CI is green and no deploy is running;
 #                      after a repo's batch lands, wait for main CI on the new head and stop that repo if it's red)
 #   DRY_RUN=1          print what would merge; merge nothing.
+#   VERIFIER_LOGIN=x   only a VERIFIED comment authored by GitHub login x counts (for a verifier with its own account)
 #   REVIEW_TIERS=1     (default) for repos with a .review-tiers file on the base branch, a human-tier PR merges only
-#                      after a person approves that exact sha: a line in $MERGE_STATE/human-approved.txt written by
-#                      bin/human-approve.sh, or an APPROVED review at that commit by a login in HUMAN_REVIEWERS.
+#                      after a person approves that exact sha:
+#     HUMAN_REVIEWERS="alice,bob" (comma- or space-separated logins): needs a GitHub review whose latest decision by
+#                      one of them is APPROVED with commit_id == the exact head sha. A local approval file entry does
+#                      NOT count then (a session that can write files could forge it) unless ALLOW_LOCAL_APPROVALS=1.
+#     HUMAN_REVIEWERS empty (solo mode): a line in $MERGE_STATE/human-approved.txt written by bin/human-approve.sh.
 # Run from a private copy (bash reads a script as it runs, so an edit mid-run would corrupt it). Note our real
 # directory first: the copy lives in a temp dir.
 [ "${MQ_COPY:-}" = "$0" ] || { export MQ_HERE="${MQ_HERE:-$(cd "$(dirname "$0")" && pwd)}"; _c="$(mktemp "${TMPDIR:-/tmp}/mergeq.XXXXXX")" && cp "$0" "$_c" && MQ_COPY="$_c" exec /bin/bash "$_c" "$@"; }
+# The copy is ours to delete on any exit (only ever a mergeq.* temp file, never the real script).
+case "$MQ_COPY" in */mergeq.??????) trap 'rm -f "$MQ_COPY"' EXIT; trap 'exit 1' HUP INT TERM;; esac
+set -f   # no globbing: VERIFY_FROM / CI_WORKFLOWS / HUMAN_REVIEWERS are split on spaces, and '*' must stay text
 HERE=$MQ_HERE
 ST=${MERGE_STATE:-$HOME/.local/state/merge-queue}
 Q=$ST/queue.txt; V=$ST/verified.txt
 [ -f "$Q" ] || { echo "STOP: no queue file $Q"; exit 1; }
+# Every VERIFY_FROM entry must be owner/repo=N: a bad N made `-gt` error, which silently skipped the VERIFIED check.
+for kv in ${VERIFY_FROM:-}; do
+  printf '%s' "$kv" | grep -Eq '^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+=[0-9]+$' \
+    || { echo "STOP: bad VERIFY_FROM entry '$kv' (want owner/repo=N, N a PR number)"; exit 1; }
+done
 [ -n "${GH_ACCOUNT:-}" ] && { GH_TOKEN=$(gh auth token -u "$GH_ACCOUNT") || exit 1; export GH_TOKEN; }
 MODE=${MERGE_MODE:-window}
+# human_approved REPO PR SHA: the rule in the header. Keep in step with human-queue.sh.
+human_approved() {
+  if [ -z "${HUMAN_REVIEWERS:-}" ] || [ "${ALLOW_LOCAL_APPROVALS:-0}" = 1 ]; then
+    grep -q "^$1 $2 $3 " "$ST/human-approved.txt" 2>/dev/null && return 0
+  fi
+  [ -n "${HUMAN_REVIEWERS:-}" ] || return 1
+  # Latest APPROVED/CHANGES_REQUESTED per login (API order is oldest first); dismissed reviews read DISMISSED.
+  gh api "repos/$1/pulls/$2/reviews" --paginate --slurp 2>/dev/null </dev/null | jq -e --arg h "$3" \
+    --arg l "$(printf '%s' "$HUMAN_REVIEWERS" | tr ', ' '\n\n')" '($l|ascii_downcase|split("\n")) as $ok
+    | [add // [] | .[] | select(.state=="APPROVED" or .state=="CHANGES_REQUESTED")]
+    | reduce .[] as $r ({}; .[$r.user.login|ascii_downcase] = $r) | to_entries
+    | any(.[]; .value.state=="APPROVED" and .value.commit_id==$h and (.key as $u | any($ok[]; . != "" and . == $u)))' >/dev/null 2>&1
+}
 vfrom() { local kv; for kv in ${VERIFY_FROM:-}; do [ "${kv%%=*}" = "$1" ] && { echo "${kv#*=}"; return; }; done; echo 0; }
 # The CI workflow file per repo (green mode reads ONLY this workflow's push runs, never a deploy or cron run).
 # CI_WORKFLOWS="owner/repo=ci.yml owner/other=test.yml"; default ci.yml.
@@ -67,7 +92,8 @@ after_batch() {  # green mode: main CI on the new head must go green, else stop 
 }
 
 OPEN=""; MERGED=""; RED=""
-while read -r R P H N; do
+# The queue is read on fd 3, so a command in the loop that reads stdin (gh, ssh, a hook) can't swallow queue lines.
+while read -r R P H N <&3; do
   [ -z "$R" ] && continue; case "$R" in "#"*) continue;; esac
   # A malformed line is skipped loudly (a non-number PR used to make `-gt` error and skip the VERIFIED check).
   case "$P" in ''|*[!0-9]*) echo "SKIP malformed queue line: $R $P (PR must be a number)"; continue;; esac
@@ -82,8 +108,10 @@ while read -r R P H N; do
   [ "$st" = OPEN ] || { echo "$R#$P is $st; skipped"; continue; }
   case " $OPEN " in *" $R "*) ;; *) repo_open "$R" || continue; OPEN="$OPEN $R";; esac
   if [ "${REQUIRE_VERIFIED:-1}" = 1 ] && [ "$P" -gt "$(vfrom "$R")" ]; then
-    gh pr view "$P" -R "$R" --json comments --jq '.comments[].body' | grep -q "VERIFIED $H" \
-      || { echo "$R#$P awaiting 'VERIFIED $H' comment from the verifier; skipped"; continue; }
+    gh pr view "$P" -R "$R" --json comments | jq -r --arg l "${VERIFIER_LOGIN:-}" \
+      '.comments[] | select($l == "" or ((.author.login // "")|ascii_downcase) == ($l|ascii_downcase)) | .body' 2>/dev/null \
+      | grep -q "VERIFIED $H" \
+      || { echo "$R#$P awaiting 'VERIFIED $H' comment from ${VERIFIER_LOGIN:-the verifier}; skipped"; continue; }
     # Second key: the coordinator records the verifier's own message, because every session shares one GitHub account.
     grep -q "^$R $P $H\b" "$V" 2>/dev/null \
       || { echo "$R#$P has a VERIFIED comment but no coordinator record of the verifier's message; skipped"; continue; }
@@ -95,15 +123,11 @@ while read -r R P H N; do
     if ! jq -e '.policy_found == false' >/dev/null 2>&1 <<<"$tj"; then
       if [ $trc -ne 0 ]; then   # 10 = human, anything else = couldn't decide = human
         human_ok=0
-        grep -q "^$R $P $H " "$ST/human-approved.txt" 2>/dev/null && human_ok=1
-        if [ $human_ok = 0 ] && [ -n "${HUMAN_REVIEWERS:-}" ]; then
-          for who in $(gh pr view "$P" -R "$R" --json reviews --jq ".reviews[] | select(.state==\"APPROVED\" and .commit.oid==\"$H\") | .author.login" 2>/dev/null); do
-            case " $HUMAN_REVIEWERS " in *" $who "*) human_ok=1;; esac
-          done
-        fi
+        human_approved "$R" "$P" "$H" && human_ok=1
         if [ $human_ok = 0 ]; then
           echo "$R#$P NEEDS HUMAN REVIEW (core code): $(jq -r '.human_files|join(", ")' <<<"$tj" 2>/dev/null); skipped"
-          echo "    approve after reading: ! $HERE/human-approve.sh $R $P $H"
+          if [ -n "${HUMAN_REVIEWERS:-}" ]; then echo "    needs an APPROVED GitHub review at $H by one of: $HUMAN_REVIEWERS"
+          else echo "    approve after reading: ! $HERE/human-approve.sh $R $P $H"; fi
           continue
         fi
         echo "$R#$P human review recorded at ${H:0:12}"
@@ -114,7 +138,7 @@ while read -r R P H N; do
   GH_ACCOUNT="" /bin/bash "$HERE/merge-guard.sh" "$R" "$P" "$H" "${N:-3}" || { echo "STOP at $R#$P"; exit 1; }
   case " $MERGED " in *" $R "*) ;; *) MERGED="$MERGED $R";; esac
   [ -x "$ST/post-merge.sh" ] && { "$ST/post-merge.sh" "$R" "$P" || echo "WARNING: post-merge hook failed for $R#$P"; }
-done < "$Q"
+done 3< "$Q"
 
 if [ "$MODE" = green ] && [ "${DRY_RUN:-0}" != 1 ]; then
   rc=0; for R in $MERGED; do after_batch "$R" || rc=1; done; exit $rc

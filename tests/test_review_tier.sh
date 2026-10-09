@@ -81,6 +81,30 @@ eq "non-ASCII path in an agent dir is read correctly (agent, not quoted-path def
 # Second review: a test renamed out of the tests is a deletion; an EMPTY policy is still a policy.
 change sh -c 'git mv tests/test_a.py tests/disabled_a.txt'
 eq "test renamed to a non-test file: human" "$(tier)" "human"
+# Third review: only real runner patterns count as runnable. A .py in tests/ that pytest won't collect is not a test,
+# so renaming test_a.py to it is a disguised deletion.
+change sh -c 'git mv tests/test_a.py tests/helper_a.py'
+eq "test renamed to a non-collected tests/helper_a.py: human" "$(tier)" "human"
+out=$(python3 -c "
+import sys; sys.path.insert(0, '$ROOT/bin'); import review_tier as r
+yes = ['test_x.py', 'pkg/test_x.py', 'x_test.py', 'a/x_test.go', 'a.test.js', 'a.test.jsx', 'b/a.test.ts', 'a.test.tsx',
+       'a.spec.js', 'a.spec.jsx', 'a.spec.ts', 'c/a.spec.tsx', '__tests__/a.js', 'src/__tests__/util/b.ts', 'tests/test_x.sh']
+no = ['latest.py', 'contest.md', 'testing/guide.md', 'tests/helper.py', 'tests/conftest.py', 'src/attest.go', 'tests/x.sh',
+      'test.py', 'scripts/test_x.sh', '_test.py', 'a.test.md', 'protest_x.py']
+print(' '.join([p for p in yes if not r.RUNNABLE_TEST.search(p)] + [p for p in no if r.RUNNABLE_TEST.search(p)]) or 'none')")
+eq "RUNNABLE_TEST matches exactly the runner patterns (listed: wrong ones)" "$out" "none"
+# Policies shipped with the kit: files that change how tests run / how agents behave / what 'tested' means are human.
+pol_tier() { python3 -c "
+import sys; sys.path.insert(0, '$ROOT/bin'); import review_tier as r
+rules, d, _ = r.parse_policy(open(sys.argv[1]).read())
+print(' '.join(r.classify_path(p, rules, d)[0] for p in sys.argv[2:]))" "$@"; }
+eq "generic policy: conftest.py (any depth), .claude/**, CLAUDE.md (any depth) are human" \
+  "$(pol_tier "$ROOT/examples/review-tiers/generic.review-tiers" conftest.py tests/conftest.py a/b/conftest.py \
+     .claude/settings.json .claude/hooks/x.sh CLAUDE.md docs/CLAUDE.md tests/test_a.py docs/x.md)" \
+  "human human human human human human human agent agent"
+eq "this repo's policy: mutants.txt, mutate.py, fixtures/** are human; other tests agent" \
+  "$(pol_tier "$ROOT/.review-tiers" tests/mutants.txt tests/mutate.py tests/fixtures/a.json tests/fixtures/d/e.txt tests/test_scan.sh)" \
+  "human human human human agent"
 git checkout -q -B emptypol base; : > .review-tiers; git commit -qam "empty policy"; git branch -f base3 HEAD
 git checkout -q -B w3 base3; echo "<u/>" >> web/components/A.tsx; git commit -qam w
 eq "empty policy file: policy_found is true (tiering stays on)" "$($RT --local --base base3 --head HEAD | jq -r .policy_found)" "true"

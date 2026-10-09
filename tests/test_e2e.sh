@@ -40,12 +40,16 @@ eq "installed guard blocks gh pr merge from a lane" "$(decision 'gh pr merge 3' 
 # 3. Stop hook: runs only for a trusted repo; blocks a turn while the checks fail (every time, not just once);
 #    lets it end when they pass; never loops.
 R=$H/work/proj; mkdir -p "$R/.claude"; git -C "$R" init -q -b main
-printf '#!/bin/bash\ngrep -q fixed src.txt\n' > "$R/.claude/check"; chmod +x "$R/.claude/check"
+printf '#!/bin/bash\n! grep -q broken src.txt "my notes.txt" 2>/dev/null\n' > "$R/.claude/check"; chmod +x "$R/.claude/check"
 echo broken > "$R/src.txt"
 ev=$(jq -n --arg d "$R" '{cwd:$d,session_id:"s1",stop_hook_active:false}')
 hook verify-before-done.sh "$ev" 2>/dev/null; eq "untrusted repo: its check code is NOT run (turn ends)" "$?" "0"
 HOME=$H TRUSTED_REPOS_FILE=$CH/trusted-repos /bin/bash "$ROOT/bin/trust-repo.sh" "$R" >/dev/null
-hook verify-before-done.sh "$ev" 2>/dev/null; eq "trusted repo: Stop hook blocks (exit 2) while checks fail" "$?" "2"
+hook verify-before-done.sh "$ev" 2>"$TMP/first.err"; eq "trusted repo: Stop hook blocks (exit 2) while checks fail" "$?" "2"
+# Found in a live Claude Code run: any stray shell error in the first block's stderr made Claude Code end the
+# turn instead of continuing. The block message must be the first and only kind of line.
+eq "first block's stderr starts with the block message" "$(head -1 "$TMP/first.err" | cut -c1-30)" "The project's checks fail on y"
+no "first block's stderr carries no shell error" grep -q "No such file" "$TMP/first.err"
 hook verify-before-done.sh "$ev" 2>/dev/null; eq "and blocks AGAIN on the same red state (not just once)" "$?" "2"
 echo fixed > "$R/src.txt"
 hook verify-before-done.sh "$ev" 2>/dev/null; eq "Stop hook lets the turn end when checks pass" "$?" "0"
@@ -55,6 +59,33 @@ eq "Stop hook never loops (stop_hook_active)" "$?" "0"
 # Review finding: committing the broken change, then stopping, must not escape the check.
 git -C "$R" add -A; git -C "$R" -c user.email=t@example.test -c user.name=t commit -qm "broken, committed"
 hook verify-before-done.sh "$ev" 2>/dev/null; eq "committed-but-unpushed red work still blocks" "$?" "2"
+# Retry cap: 3 consecutive blocks on the same state, then the stop is let through with a "person should look"
+# notice, so a session can't loop forever. Any edit resets the count.
+printf '#!/bin/bash\necho "$2" >> %s/vnotes\n' "$TMP" > "$TMP/vn.sh"; chmod +x "$TMP/vn.sh"
+hook verify-before-done.sh "$ev" 2>/dev/null; eq "same red state: 2nd block" "$?" "2"
+hook verify-before-done.sh "$ev" 2>/dev/null; eq "same red state: 3rd block" "$?" "2"
+out=$(NOTIFY_CMD=$TMP/vn.sh hook verify-before-done.sh "$ev" 2>/dev/null); eq "after 3 blocks on one state, the stop is allowed" "$?" "0"
+eq "the capped stop tells the user the checks still fail" "$(jq -r '.systemMessage | test("still failing")' <<<"$out")" "true"
+ok "the capped stop sends a notification" grep -q "a person should look" "$TMP/vnotes"
+echo "broken again" > "$R/src.txt"
+hook verify-before-done.sh "$ev" 2>/dev/null; eq "an edit resets the cap: red blocks again" "$?" "2"
+# Fingerprint is the tree's CONTENT: a second edit to an already-dirty file with a space in its name (which
+# `git status` quotes) must re-run the checks.
+echo fixed > "$R/src.txt"; echo fine > "$R/my notes.txt"
+git -C "$R" add -A; git -C "$R" -c user.email=t@example.test -c user.name=t commit -qm "fixed"
+echo "fine 2" > "$R/my notes.txt"
+hook verify-before-done.sh "$ev" 2>/dev/null; eq "dirty spaced-name file, checks pass" "$?" "0"
+echo broken > "$R/my notes.txt"
+hook verify-before-done.sh "$ev" 2>/dev/null; eq "editing that already-dirty file again re-runs the checks (blocks)" "$?" "2"
+# Found in a live Claude Code run: a blocked session rewrote .claude/check to exit 0. On a branch, the check that
+# runs is main's committed version; edits to it apply only after they merge (and .claude/** is human tier).
+git -C "$R" checkout -q -- "my notes.txt"; git -C "$R" checkout -q -b lane-x
+printf '#!/bin/bash\nexit 0\n' > "$R/.claude/check"; echo broken > "$R/src.txt"
+hook verify-before-done.sh "$ev" 2>"$TMP/gm.err"; eq "a branch's own edit to .claude/check doesn't pass the gate" "$?" "2"
+ok "…and the message says main's version ran" grep -q "main branch's .claude/check" "$TMP/gm.err"
+git -C "$R" add -A; git -C "$R" -c user.email=t@example.test -c user.name=t commit -qm "game the check"
+hook verify-before-done.sh "$ev" 2>/dev/null; eq "committing the edited check doesn't pass the gate either" "$?" "2"
+git -C "$R" checkout -q main
 
 # 4. SessionStart after compaction re-injects the lane state file.
 mkdir -p "$CH/lanes"; printf -- '- [ ] write the login test\n' > "$CH/lanes/lane-1.md"

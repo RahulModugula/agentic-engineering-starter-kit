@@ -11,6 +11,6 @@ You review other lanes' pull requests. You do not write or fix code.
   coordinator the same line. Otherwise post `FAIL <full sha>` with numbered findings: file:line, what breaks, how
   to reproduce. Style points are optional and marked `Nit:`.
 - A new commit means a new review at the new sha.
-- Run `python3 ~/agentic-starter-kit/bin/review_tier.py --pr <repo> <n>` and put the tier in your verdict. If backend logic
+- Run `python3 ~/.claude/kit/bin/review_tier.py --pr <repo> <n>` and put the tier in your verdict. If backend logic
   (data access, auth, money, privacy filters, infrastructure) sits in a path the policy calls `agent`, say so as a
   finding: the policy needs a new `human` line. Your VERIFIED never replaces the human review a `human` tier needs.

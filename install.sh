@@ -1,20 +1,38 @@
 #!/bin/bash
-# install.sh: make ~/.claude run from this repo (symlinks), with a backup and a one-command rollback.
+# install.sh: install the kit into ~/.claude WITHOUT replacing your own setup, with a backup and a one-command rollback.
 #   ./install.sh             DRY RUN (default): what would change, with a diff per file. Changes nothing.
-#   ./install.sh --apply     back up every file it replaces, then symlink each managed file into this repo.
+#   ./install.sh --apply     back up everything it touches, then install (below).
 #   ./install.sh --rollback  restore the latest backup exactly (files that didn't exist before are removed).
-#   ./install.sh --status    check every managed path still links into this repo (catches drift).
-# Only the files listed in managed() are touched. Session state (hooks/.state, projects/, memory, transcripts) and
-# app-synced skills are never touched. CLAUDE_HOME overrides ~/.claude (tests use it).
+#   ./install.sh --status    check the install is intact (links, settings rules and hooks, CLAUDE.md import).
+# What --apply does:
+#   - links ~/.claude/kit to this repo, and each program file (hooks, lib, roles, agents) to its copy here, so a
+#     `git pull` here updates them;
+#   - MERGES the kit's settings into your ~/.claude/settings.json (adds deny rules and hooks; removes nothing);
+#   - adds one import line to your ~/.claude/CLAUDE.md (your own text stays);
+#   - copies guard.conf, lanes.zsh, roles/ and agents/ only where you don't have them: they're yours to edit
+#     afterwards, and a file of yours is never replaced.
+# Session state (hooks/.state, projects/, memory, transcripts) is never touched. CLAUDE_HOME overrides ~/.claude.
 set -euo pipefail
 REPO=$(cd "$(dirname "$0")" && pwd)
 CH=${CLAUDE_HOME:-$HOME/.claude}
 BK=${INSTALL_BACKUPS:-$(dirname "$CH")/.claude-backups}
+KIT_SETTINGS=${KIT_SETTINGS:-$REPO/claude/settings.json}
+IMPORT='@~/.claude/kit/claude/CLAUDE.md'
+config_files() {  # yours after install: copied only if missing, never linked or replaced
+  (cd "$REPO/claude" && { for c in guard.conf lanes.zsh; do [ -f "$c" ] && echo "$c"; done
+    find roles agents -type f ! -name '.DS_Store' 2>/dev/null; } | sort)
+}
 mode=${1:-dry}
 
-managed() {  # every file under claude/ except docs, app-synced skills and session state
+managed() {  # program files: linked. Everything under claude/ except config, docs, synced skills and session state.
   (cd "$REPO/claude" && find . -type f ! -path './designs/*' ! -path './skills/synced/*' ! -path '*/.state/*' \
-     ! -name '.DS_Store' | sed 's#^\./##' | sort)
+     ! -path './roles/*' ! -path './agents/*' \
+     ! -name '.DS_Store' ! -name settings.json ! -name CLAUDE.md ! -name guard.conf ! -name lanes.zsh \
+     | sed 's#^\./##' | sort)
+}
+touched() {  # every path --apply may change, relative to ~/.claude
+  managed; echo kit; echo settings.json; echo CLAUDE.md
+  config_files
 }
 
 state() {  # state TARGET SOURCE -> linked|file|link-elsewhere|missing
@@ -22,20 +40,36 @@ state() {  # state TARGET SOURCE -> linked|file|link-elsewhere|missing
   elif [ -e "$1" ]; then echo file; else echo missing; fi
 }
 
-version_check() {  # Claude Code < 2.1.290 could skip the settings permission prompt for edits behind a symlinked
-  # settings.json (fixed in 2.1.290 per the changelog, read 2026-10-09). Symlinks are only safe from there on.
+version_check() {  # hooks and settings keys used here need a recent Claude Code; warn, don't block
   local v; v=$(claude --version 2>/dev/null | awk '{print $1}')
-  [ -n "$v" ] || { echo "WARNING: claude not found on PATH; can't check its version."; return 0; }
+  [ -n "$v" ] || { echo "NOTE: claude not found on PATH; install Claude Code before starting sessions."; return 0; }
   if [ "$(printf '%s\n%s\n' "$v" 2.1.290 | sort -V | head -1)" != 2.1.290 ]; then
-    echo "WARNING: Claude Code $v < 2.1.290. Upgrade first (\`claude update\`); older versions mishandle a symlinked settings.json."
-    return 1
+    echo "NOTE: Claude Code $v is older than 2.1.290, the version this kit is tested with. Run: claude update"
   fi
+  claude_at_least 2.1.295 || echo "NOTE: before Claude Code 2.1.295 a guard that times out or can't start lets the command run. Run: claude update, then ./install.sh --apply again."
 }
+
+claude_at_least() {  # claude_at_least 2.1.295: is the installed Claude Code that version or newer?
+  local v; v=$(claude --version 2>/dev/null | awk '{print $1}')
+  [ -n "$v" ] && [ "$(printf '%s\n%s\n' "$v" "$1" | sort -V | head -1)" = "$1" ]
+}
+merged_settings() {  # print what settings.json would become
+  # onFailure ("block" when a guard can't run or times out) arrived in 2.1.295; older versions get the hooks
+  # without it, and --status tells them to update.
+  local drop=""; claude_at_least 2.1.295 || drop=onFailure
+  KIT_DROP_HOOK_KEYS=$drop python3 "$REPO/bin/settings-merge.py" merge "$CH/settings.json" "$KIT_SETTINGS"
+}
+kit_check() {  # are the kit's deny rules and hooks in your settings? (same version rule as merged_settings)
+  local drop=""; claude_at_least 2.1.295 || drop=onFailure
+  KIT_DROP_HOOK_KEYS=$drop python3 "$REPO/bin/settings-merge.py" check "$CH/settings.json" "$KIT_SETTINGS"
+}
+has_import() { [ -f "$CH/CLAUDE.md" ] && grep -qxF "$IMPORT" "$CH/CLAUDE.md"; }
+own_claude_md() { [ "$(state "$CH/CLAUDE.md" "$REPO/claude/CLAUDE.md")" = linked ]; }  # it already IS the kit's file
 
 case "$mode" in
 dry|--dry-run)
   echo "DRY RUN: nothing changes. Repo: $REPO  Target: $CH"
-  version_check || true
+  version_check
   n=0
   while read -r rel; do
     src="$REPO/claude/$rel"; dst="$CH/$rel"; s=$(state "$dst" "$src")
@@ -48,31 +82,56 @@ dry|--dry-run)
     esac
     n=$((n + 1))
   done < <(managed)
-  echo "$n path(s) would change. Apply with: $0 --apply   (rollback: $0 --rollback)";;
+  [ "$(state "$CH/kit" "$REPO")" = linked ] || { echo "+ LINK  kit -> $REPO"; n=$((n + 1)); }
+  if ! kit_check >/dev/null; then
+    echo "~ MERGE settings.json (adds, never removes):"
+    diff -u <(cat "$CH/settings.json" 2>/dev/null || true) <(merged_settings) | sed '1,2d' | sed 's/^/    /' || true
+    n=$((n + 1))
+  fi
+  has_import || { echo "+ LINE  CLAUDE.md gets: $IMPORT"; n=$((n + 1)); }
+  while read -r c; do
+    [ -e "$CH/$c" ] || { echo "+ COPY  $c (yours to edit)"; n=$((n + 1)); }
+  done < <(config_files)
+  echo "$n change(s) would be made. Apply with: $0 --apply   (rollback: $0 --rollback)";;
 
 --apply)
-  version_check || [ "${INSTALL_ANY_VERSION:-0}" = 1 ] || { echo "Refusing to apply. Upgrade, or set INSTALL_ANY_VERSION=1."; exit 1; }
-  # A zero-padded sequence number first, so backups always sort in the order they were made (two applies in the
-  # same second used to sort by PID, which could reverse them).
+  version_check
+  command -v python3 >/dev/null || { echo "install: python3 is required (to merge settings.json)."; exit 1; }
+  command -v jq >/dev/null || echo "NOTE: jq is not installed; the guard blocks every command until it is (brew/apt install jq)."
+  # Validate your settings.json BEFORE touching anything: a file we can't parse is never overwritten.
+  merged_settings > /dev/null || { echo "install: can't parse $CH/settings.json; fix it first. Nothing changed."; exit 1; }
+  # A zero-padded sequence number first, so backups always sort in the order they were made.
   mkdir -p "$BK"; seq_n=$(( $(find "$BK" -mindepth 1 -maxdepth 1 -type d | wc -l) + 1 ))
   ts=$(printf '%04d' "$seq_n")-$(date +%Y%m%d-%H%M%S); dest="$BK/$ts"; mkdir -p "$dest"
   : > "$dest/manifest"
   while read -r rel; do
-    dst="$CH/$rel"; s=$(state "$dst" "$REPO/claude/$rel")
+    dst="$CH/$rel"; src="$REPO/claude/$rel"; [ "$rel" = kit ] && src=$REPO
+    s=$(state "$dst" "$src")
     echo "$s $rel" >> "$dest/manifest"
-    # Back up what would be lost. A path already linked here holds nothing to lose (its original is in an
-    # earlier backup), so it is recorded as "linked" and left alone on rollback.
+    # Back up what would be lost. A path already linked here holds nothing to lose, so rollback leaves it alone.
     if [ "$s" = file ] || [ "$s" = link-elsewhere ]; then
       mkdir -p "$dest/files/$(dirname "$rel")"; cp -P "$dst" "$dest/files/$rel"
     fi
-  done < <(managed)
-  # settings.json is also kept as a plain copy: some tools rewrite it in place.
-  [ -f "$CH/settings.json" ] && cp "$CH/settings.json" "$dest/settings.json.copy"
+  done < <(touched)
+  # Folders this install creates are recorded too (deepest first), so a rollback leaves no empty ones behind.
+  { managed; config_files; } | while read -r rel; do d=$(dirname "$rel"); while [ "$d" != . ]; do echo "$d"; d=$(dirname "$d"); done; done \
+    | sort -ru | while read -r d; do [ -e "$CH/$d" ] || echo "newdir $d"; done >> "$dest/manifest"
   echo "Backup: $dest ($(wc -l < "$dest/manifest" | tr -d ' ') paths recorded)"
+  mkdir -p "$CH"
+  ln -sfn "$REPO" "$CH/kit"
   while read -r rel; do
     mkdir -p "$CH/$(dirname "$rel")"; ln -sfn "$REPO/claude/$rel" "$CH/$rel"
   done < <(managed)
-  # Merge queue state moves out of the script into $MERGE_STATE (copy only; the old files are left in place).
+  # settings.json: write the merge to a temp file, then move it into place (replaces a symlink, never writes through).
+  merged_settings > "$CH/settings.json.kit-new" && mv "$CH/settings.json.kit-new" "$CH/settings.json"
+  if ! has_import && ! own_claude_md; then
+    if [ -L "$CH/CLAUDE.md" ]; then cp "$CH/CLAUDE.md" "$CH/CLAUDE.md.kit-new" && mv "$CH/CLAUDE.md.kit-new" "$CH/CLAUDE.md"; fi
+    { [ -s "$CH/CLAUDE.md" ] && printf '\n# Agentic engineering kit (remove this line to stop loading it)\n'; echo "$IMPORT"; } >> "$CH/CLAUDE.md"
+  fi
+  while read -r c; do
+    if [ ! -e "$CH/$c" ]; then mkdir -p "$CH/$(dirname "$c")"; cp "$REPO/claude/$c" "$CH/$c"; fi
+  done < <(config_files)
+  # Merge queue state lives in $MERGE_STATE. Optional one-time copy from an older inline queue script.
   MS=${MERGE_STATE:-$HOME/.local/state/merge-queue}; OLD=${OLD_MERGE_DIR:-}
   mkdir -p "$MS"
   if [ -n "$OLD" ] && [ ! -f "$MS/queue.txt" ] && [ -f "$OLD/merge_next.sh" ]; then
@@ -80,7 +139,7 @@ dry|--dry-run)
     [ -f "$OLD/verified.txt" ] && cp "$OLD/verified.txt" "$MS/verified.txt"
     echo "Merge queue copied from $OLD to $MS ($(grep -cv '^#' "$MS/queue.txt" || true) active lines)."
   fi
-  "$0" --status;;
+  /bin/bash "$REPO/install.sh" --status;;
 
 --rollback)
   # The newest backup not yet used: a used one is renamed *.rolled-back and never picked again.
@@ -95,7 +154,8 @@ dry|--dry-run)
     dst="$CH/$rel"
     case "$s" in
       linked) ;;                              # was already installed before this apply: nothing to restore
-      missing) rm -f "$dst";;
+      newdir) rmdir "$dst" 2>/dev/null || true;;   # only if empty: anything you put there stays
+      missing) rm -rf "$dst";;
       *) rm -f "$dst"; mkdir -p "$(dirname "$dst")"; cp -P "$last/files/$rel" "$dst";;
     esac
   done < "$last/manifest"
@@ -103,12 +163,20 @@ dry|--dry-run)
   mv "$last" "$last.rolled-back";;
 
 --status)
+  if [ ! -L "$CH/kit" ] && [ -z "$(find "$CH" -type l 2>/dev/null | head -1)" ]; then
+    echo "NOT INSTALLED: nothing from the kit is in $CH (install with: ./install.sh --apply)"; exit 1
+  fi
   bad=0
   while read -r rel; do
     s=$(state "$CH/$rel" "$REPO/claude/$rel")
     [ "$s" = linked ] || { echo "DRIFT $s $rel"; bad=1; }
   done < <(managed)
-  [ $bad = 0 ] && echo "STATUS OK: every managed path links into $REPO/claude" || { echo "STATUS: drift found (re-run --apply, or --rollback)"; exit 1; };;
+  [ "$(state "$CH/kit" "$REPO")" = linked ] || { echo "DRIFT kit does not link to $REPO"; bad=1; }
+  miss=$(kit_check) \
+    || { bad=1; printf '%s\n' "$miss" | sed 's/^/DRIFT settings.json /'; }
+  has_import || own_claude_md || { echo "DRIFT CLAUDE.md lacks: $IMPORT"; bad=1; }
+  [ $bad = 0 ] && echo "STATUS OK: kit linked, program files linked, settings rules and hooks present" \
+    || { echo "STATUS: drift found (re-run --apply, or --rollback)"; exit 1; };;
 
-*) sed -n '2,8p' "$0"; exit 2;;
+*) sed -n '2,13p' "$0"; exit 2;;
 esac

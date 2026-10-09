@@ -25,7 +25,10 @@ import argparse, json, re, subprocess, sys
 
 POLICY = ".review-tiers"
 # A file a test runner would actually collect (by name). Renaming one to anything else disables it.
-RUNNABLE_TEST = re.compile(r"(^|/)test_[^/]*\.py$|_test\.(py|go)$|\.(test|spec)\.[jt]sx?$|(^|/)tests?/[^/]*\.(py|[jt]sx?|go|rb|rs)$")
+# Only real runner patterns: test_*.py, *_test.py, *_test.go, *.test|spec.{js,jsx,ts,tsx}, anything under __tests__/,
+# and shell tests/test_*.sh. A bare "test" substring (latest.py, contest.md, testing/guide.md) is not a test.
+RUNNABLE_TEST = re.compile(r"(^|/)test_[^/]*\.py$|[^/]_test\.(py|go)$|\.(test|spec)\.[jt]sx?$"
+                           r"|(^|/)__tests__/|(^|/)tests/test_[^/]*\.sh$")
 TEST_PATH = re.compile(r"(^|/)(tests?|__tests__|spec)/|(^|/)test_[^/]*\.py$|_test\.(py|go)$|\.(test|spec)\.[jt]sx?$")
 ASSERT = re.compile(r"\b(assert|expect\s*\(|assertEqual|assertTrue|assertRaises|pytest\.raises|should\.)")
 # An assertion that can't fail: swapping a real check for one of these keeps the assert count equal.

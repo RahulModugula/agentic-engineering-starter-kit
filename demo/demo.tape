@@ -15,7 +15,7 @@ Show
 Type "./install.sh            # dry run: shows every change, changes nothing"
 Enter
 Sleep 3s
-Type "INSTALL_ANY_VERSION=1 ./install.sh --apply"
+Type "./install.sh --apply      # backs up, then merges into your settings"
 Enter
 Sleep 3s
 Type `echo '{"tool_input":{"command":"git push origin main"},"cwd":"/tmp"}' | ~/.claude/hooks/lane-guard.sh | jq -r .hookSpecificOutput.permissionDecisionReason`

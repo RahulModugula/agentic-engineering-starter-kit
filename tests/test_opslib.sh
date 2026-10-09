@@ -29,6 +29,10 @@ printf '%s\t%s\n' "$$" "Thu Jan  1 00:00:00 1970" > "$TMP/reuse.pid"
 no "alive false when the PID was reused (start time differs)" alive "$TMP/reuse.pid"
 no "alive false for a missing pidfile" alive "$TMP/nope.pid"
 echo "garbage" > "$TMP/bad.pid"; no "alive false for a corrupt pidfile" alive "$TMP/bad.pid"
+# A live PID with NO recorded start time can't be told from a stranger that reused it: not alive.
+printf '%s\t\n' "$$" > "$TMP/nost.pid"; no "alive false when the pidfile has no start time" alive "$TMP/nost.pid"
+printf '%s\n' "$$" > "$TMP/nost2.pid"; no "alive false for a bare-PID pidfile" alive "$TMP/nost2.pid"
+printf '%s\t%s\n' "$$" "$(_ops_start_time $$)" > "$TMP/self.pid"; ok "alive true when PID and start time match" alive "$TMP/self.pid"
 
 # need_creds / sso_minutes_left against a fake config + cache (no real tokens touched)
 mkdir -p "$TMP/cache"
@@ -79,6 +83,18 @@ dead() { echo "UnauthorizedSSOTokenError"; return 1; }
 echo 0 > "$TMP/n"; cnt() { echo $(( $(cat "$TMP/n") + 1 )) > "$TMP/n"; dead; }
 rc 3 "retry stops at once on an auth error" retry 3 cnt
 eq "retry did not repeat an auth failure" "$(cat "$TMP/n")" "1"
+# stdout is the data; a warning on stderr must not end up in it (but still reaches stderr).
+noisy() { echo "warning: slow" >&2; echo '{"ok":1}'; }
+eq "retry returns only the command's stdout" "$(retry 2 noisy 2>/dev/null)" '{"ok":1}'
+ok "retry passes the command's stderr through" grep -q "warning: slow" <<<"$(retry 2 noisy 2>&1 >/dev/null)"
+dead2() { echo "UnauthorizedSSOTokenError" >&2; return 1; }
+rc 3 "retry still sees an auth error printed on stderr" retry 3 dead2
+
+# go_fingerprint: arguments are hashed NUL-separated, so word boundaries count.
+printf 'echo hi\n' > "$TMP/s.sh"
+a=$(go_fingerprint "$TMP/s.sh" "a b" c); b=$(go_fingerprint "$TMP/s.sh" a "b c")
+no "go_fingerprint: (\"a b\",\"c\") differs from (\"a\",\"b c\")" test "$a" = "$b"
+eq "go_fingerprint: same args, same fingerprint" "$(go_fingerprint "$TMP/s.sh" "a b" c)" "$a"
 
 # No process-pattern tools anywhere in the library (the 10-07/10-08 failures).
 no "opslib uses no pgrep/pkill/killall" grep -Eq '^[^#]*\b(pgrep|pkill|killall)\b' "$ROOT/claude/lib/opslib.sh"

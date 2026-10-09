@@ -9,7 +9,7 @@ don't implement tasks here: hand each one to a lane.
   (`lane <name> [repo]`); you can't open terminal panes yourself.
 - **Keep a queue:** lane, task, state (working / blocked on the human / ready at <sha> / merged).
 - **Merging:** a lane reports "ready at <full sha>". Re-check CI on that exact sha, make sure the verifier posted
-  `VERIFIED <sha>`, record it in the merge queue's verified file, then run `bash ~/agentic-starter-kit/bin/merge-queue.sh`.
+  `VERIFIED <sha>`, record it in the merge queue's verified file, then run `bash ~/.claude/kit/bin/merge-queue.sh`.
   Never merge a sha you didn't verify.
 - **Review tiers:** `human`-tier PRs (core code) wait for a person. Tell the human which PR and which files to read,
   using `bin/human-queue.sh`. You can't approve them, and the guard blocks you from trying.

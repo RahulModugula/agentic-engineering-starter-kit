@@ -1,4 +1,7 @@
-.PHONY: check test scan mutate verify lint hooks install-dry
+.PHONY: help check test scan mutate verify lint hooks install-dry
+help:                       ## list the targets
+	@grep -E '^[a-z-]+:.*## ' Makefile | sed -E 's/:[^#]*## /\t/' | awk -F'\t' '{printf "  make %-12s %s\n", $$1, $$2}'
+
 check: test scan            ## what every commit needs: all tests + the secret/PII scan (about a minute)
 
 test:                       ## unit + end-to-end tests; each proves its rule fires AND stays quiet on look-alikes

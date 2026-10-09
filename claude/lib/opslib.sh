@@ -61,8 +61,11 @@ alive() {
   IFS=$'\t' read -r pid st < "$1"
   case "$pid" in ''|*[!0-9]*) return 1;; esac
   kill -0 "$pid" 2>/dev/null || return 1
-  # A recycled PID has a different start time.
-  [ -z "$st" ] || [ "$(_ops_start_time "$pid")" = "$st" ]
+  # A recycled PID has a different start time. No recorded (or readable) start time means we can't tell the
+  # process from a stranger that reused its PID, so it doesn't count as alive.
+  [ -n "$st" ] || return 1
+  local now; now=$(_ops_start_time "$pid")
+  [ -n "$now" ] && [ "$now" = "$st" ]
 }
 
 # stop_own PIDFILE -> TERM only the process recorded in PIDFILE (never a pattern).
@@ -137,15 +140,21 @@ is_auth_error() {
 
 # retry N CMD [ARGS...] -> runs CMD up to N times, sleeping OPS_BACKOFF (default "20 40 60") between tries.
 # Stops at once (exit 3) on an auth error: retrying dead credentials only hides the problem.
+# Returns CMD's stdout only; CMD's stderr goes to stderr (never mixed into the data a caller parses).
 retry() {
   [ $# -ge 2 ] || { echo "usage: retry N CMD [ARGS...]" >&2; return 2; }
-  local n=$1 i=1 out rc; shift
+  local n=$1 i=1 out err ef rc; shift
   local backoff=(${OPS_BACKOFF:-20 40 60})
+  ef=$(mktemp "${TMPDIR:-/tmp}/opsretry.XXXXXX") || { echo "retry: mktemp failed" >&2; return 2; }
   while :; do
-    out=$("$@" 2>&1); rc=$?
-    [ $rc -eq 0 ] && { printf '%s' "$out"; return 0; }
-    is_auth_error "$out" && { printf '%s\n' "$out" >&2; echo "retry: credentials failed; not retrying" >&2; return 3; }
-    [ $i -ge "$n" ] && { printf '%s\n' "$out" >&2; return $rc; }
+    out=$("$@" 2>"$ef"); rc=$?; err=$(cat "$ef")
+    if [ $rc -eq 0 ]; then
+      [ -n "$err" ] && printf '%s\n' "$err" >&2
+      rm -f "$ef"; printf '%s' "$out"; return 0
+    fi
+    is_auth_error "$out
+$err" && { printf '%s\n' "$out" "$err" >&2; echo "retry: credentials failed; not retrying" >&2; rm -f "$ef"; return 3; }
+    [ $i -ge "$n" ] && { printf '%s\n' "$out" "$err" >&2; rm -f "$ef"; return $rc; }
     sleep "${backoff[$(( i - 1 < ${#backoff[@]} ? i - 1 : ${#backoff[@]} - 1 ))]}"
     i=$((i + 1))
   done
@@ -163,7 +172,7 @@ go_fingerprint() {
   local s=$1; shift
   {
     printf 'script:'; shasum -a 256 < "$s"
-    printf 'args:%s\n' "$*"
+    printf 'args:'; [ $# -gt 0 ] && printf '%s\0' "$@"; printf '\n'   # NUL-separated: ("a b","c") != ("a","b c")
     local v f
     for v in ${GO_ENV:-}; do printf 'env:%s=%s\n' "$v" "${!v-<unset>}"; done
     for f in ${GO_FILES:-}; do printf 'file:%s:' "$f"; shasum -a 256 < "$f"; done
@@ -177,7 +186,7 @@ require_go() {
   [ "${GO_REQUIRED:-0}" = 1 ] || return 0
   local fp f dir=${GO_DIR:-$HOME/.claude/gos} exp
   fp=$(go_fingerprint "${GO_SCRIPT:-$0}" "$@"); f="$dir/$fp.go"
-  [ -f "$f" ] || { echo "require_go: no go for this exact run (fingerprint ${fp:0:12}). Owner runs: ! ~/agentic-starter-kit/bin/go.sh <script> ..." >&2; return 4; }
+  [ -f "$f" ] || { echo "require_go: no go for this exact run (fingerprint ${fp:0:12}). Owner runs: ! ~/.claude/kit/bin/go.sh <script> ..." >&2; return 4; }
   exp=$(sed -n 's/^expires_epoch=//p' "$f")
   { [ -n "$exp" ] && [ "$(date +%s)" -lt "$exp" ]; } || { echo "require_go: the go for ${fp:0:12} has expired" >&2; return 4; }
   [ "${GO_REUSE:-0}" = 1 ] || mv "$f" "$f.used.$(date +%s)"
