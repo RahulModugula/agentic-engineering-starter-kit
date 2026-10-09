@@ -1,0 +1,4 @@
+#!/bin/bash
+# Refuse a commit that would add secrets, personal data or session state. Enable with `make hooks`.
+root=$(git rev-parse --show-toplevel)
+/bin/bash "$root/bin/scan.sh" "$root" || { echo "pre-commit: scan found problems (above). Fix them, or remove the files." >&2; exit 1; }

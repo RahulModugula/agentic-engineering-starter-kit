@@ -1,0 +1,36 @@
+# Template CI for YOUR project (not this repo): full tests, changed-line coverage, mutation on changed code.
+# Commands come from each tool's docs (see docs/TESTING.md); adapt paths and tools to your stack. Not run here.
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0            # diff-cover compares against origin/main
+          persist-credentials: false
+      # --- Python example ---
+      - run: pip install -r requirements-dev.txt pytest pytest-cov diff-cover
+      - run: pytest --cov --cov-report=xml
+      - name: Changed lines must be tested
+        if: github.event_name == 'pull_request'
+        run: diff-cover coverage.xml --compare-branch=origin/main --fail-under=90
+  mutation:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # Pick the line for your language; each mutates only code this PR changed:
+      #   JS/TS : npx stryker run --incremental
+      #   Rust  : git diff origin/main > pr.diff && cargo mutants --in-diff pr.diff
+      #   Python: Cosmic Ray with its git filter (cr-filter-git); see its docs for the session setup
+      - run: echo "choose your mutation tool above"

@@ -1,0 +1,15 @@
+.DS_Store
+*.bak*
+# Session state and app-managed content never belong in this repo (bin/scan.sh also refuses them).
+claude/hooks/.state/
+claude/skills/synced/
+claude/projects/
+claude/memory/
+*.jsonl
+.secrets/
+.env
+.env.*
+dist/
+state/
+__pycache__/
+.share-build

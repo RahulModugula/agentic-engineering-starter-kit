@@ -1,0 +1,19 @@
+#!/bin/bash
+# Fake `gh` for merge tests. Behaviour comes from files in $FAKE_GH (one per PR: <repo-with-_>-<pr>.json holding
+# {"state","headRefOid","statusCheckRollup","mergeable","mergeStateStatus","comments":[...]}), plus:
+#   $FAKE_GH/main-ci       "completed success" etc. for `gh run list`
+#   $FAKE_GH/last-merge    ISO time for `gh pr list --state merged`
+# Every merge is appended to $FAKE_GH/merged.log; `gh pr merge` flips the PR's state to MERGED.
+args="$*"; repo=""; pr=""
+while [ $# -gt 0 ]; do case "$1" in -R|--repo) repo=$2; shift 2;; [0-9]*) [ -z "$pr" ] && pr=$1; shift;; *) shift;; esac; done
+f="$FAKE_GH/$(echo "$repo" | tr / _)-$pr.json"
+jqarg() { printf '%s' "$args" | sed -nE 's/.*(--jq|-q) (.*)$/\2/p'; }
+case "$args" in
+  "auth token"*) echo fake-token;;
+  "pr view"*) q=$(jqarg); if [ -n "$q" ]; then jq -r "$q" "$f"; else cat "$f"; fi;;
+  "pr merge"*) echo "$repo $pr" >> "$FAKE_GH/merged.log"; tmp=$(mktemp); jq '.state="MERGED"|.mergeCommit={oid:"m1"}' "$f" > "$tmp" && mv "$tmp" "$f";;
+  "pr list"*) echo "${FAKE_LAST_MERGE:-}";;
+  "run list"*) echo "$args" >> "$FAKE_GH/run-list.log"; cat "$FAKE_GH/main-ci" 2>/dev/null || echo "completed success";;
+  "api repos/"*"/commits/main"*) echo "${FAKE_MAIN_SHA:-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}";;
+  *) echo "fake-gh: unhandled: $args" >&2; exit 1;;
+esac

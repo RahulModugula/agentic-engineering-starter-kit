@@ -1,0 +1,14 @@
+# Review policy for this repo (see docs/REVIEW-TIERS.md). The gates themselves are human-tier.
+default human
+agent docs/**
+agent claude/designs/**
+agent examples/**
+agent tests/**
+human bin/**
+human claude/hooks/**
+human claude/settings.json
+human claude/guard.conf
+human install.sh
+human tests/test_guardhook.sh
+human tests/test_review_tier.sh
+human tests/test_merge_tools.sh

@@ -1,0 +1,34 @@
+# .review-tiers: copy to your repo root and edit. Unlisted paths need a person. `human` lines win over `agent`.
+# See docs/REVIEW-TIERS.md.
+default human
+
+# Agents handle these end to end (the AI verifier is enough)
+agent web/**
+agent frontend/**
+agent **/components/**
+agent **/*.css
+agent tests/**
+agent **/test_*.py
+agent **/*.test.*
+agent **/*.spec.*
+agent bench/**
+agent benchmarks/**
+agent docs/**
+agent **/*.md
+
+# Core: a person reads these before they merge
+human **/auth*/**
+human **/security/**
+human **/migrations/**
+human **/schema*
+human **/billing/**
+human **/payments/**
+human infra/**
+human terraform/**
+human .github/**
+human Dockerfile*
+human **/*.sql
+
+# An agent-tier file that starts using core code needs a person
+escalate (import|from|require\().*\b(auth|db|database|secrets?|iam|billing|payments?)\b
+escalate \b(SELECT|INSERT|UPDATE|DELETE)\b.*\b(FROM|INTO|SET)\b

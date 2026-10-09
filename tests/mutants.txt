@@ -1,0 +1,75 @@
+# Mutation checks: each line breaks ONE safety rule on purpose; its test file must then FAIL ("killed").
+# file | test file | exact text to replace | replacement
+# A file that doesn't exist in this repo is skipped; text that's missing from an existing file is an error (stale).
+claude/hooks/lane-guard.sh | test_guardhook.sh | runs 'pkill|killall' | runs 'no-such-program'
+claude/hooks/lane-guard.sh | test_guardhook.sh | in_coord || out deny "Merge/release | true || out deny "Merge/release
+claude/hooks/lane-guard.sh | test_guardhook.sh | case "$dst" in main|master) echo "MAIN"; break;; esac | case "$dst" in mainx) echo "MAIN"; break;; esac
+claude/hooks/lane-guard.sh | test_guardhook.sh | --force|--force=*) echo "FORCE"; break;; | --forcex) echo "FORCE"; break;;
+claude/hooks/lane-guard.sh | test_guardhook.sh | runs 'human-approve\.sh|human-a[^ ]*[*?[][^ ]*' | runs 'zz-none'
+claude/hooks/lane-guard.sh | test_guardhook.sh | in_coord || out deny "Lanes never merge | true || out deny "Lanes never merge
+claude/lib/opslib.sh | test_opslib.sh | [ -z "$st" ] || [ "$(_ops_start_time "$pid")" = "$st" ] | true
+claude/lib/opslib.sh | test_opslib.sh | need + ${OPS_CRED_MARGIN:-20} | need
+claude/lib/opslib.sh | test_opslib.sh | is_auth_error "$out" && { | false && {
+claude/lib/opslib.sh | test_opslib.sh | if refreshable: | if False:
+claude/lib/opslib.sh | test_gos.sh | [ "${GO_REUSE:-0}" = 1 ] || mv "$f" | [ "${GO_REUSE:-0}" = 1 ] || cp "$f"
+claude/lib/opslib.sh | test_gos.sh | printf 'env:%s=%s\n' "$v" "${!v-<unset>}" | printf 'env:%s\n' "$v"
+bin/merge-guard.sh | test_merge_tools.sh | $head == "$SHA" && | 1 == 1 &&
+bin/merge-guard.sh | test_merge_tools.sh | UNSTABLE|DRAFT) | NOT-A-STATE)
+bin/merge-queue.sh | test_merge_tools.sh | human_ok=0 | human_ok=1
+bin/merge-queue.sh | test_merge_tools.sh | grep -q "^$R $P $H\b" "$V" 2>/dev/null | true
+bin/merge-queue.sh | test_merge_tools.sh | --workflow "$(ci_wf "$1")" --event push | --event push
+bin/review_tier.py | test_review_tier.sh | if "human" in tiers: return "human", "matches a human rule" | if False: return "human", ""
+bin/review_tier.py | test_review_tier.sh | + ([f["old_path"]] if f.get("old_path") else []) | + []
+bin/review_tier.py | test_review_tier.sh | if any(SKIP.search(ln) for ln in added): | if False:
+bin/review_tier.py | test_review_tier.sh | if "HTTP 404" not in (e.stderr or ""): | if False:
+bin/review_tier.py | test_review_tier.sh | f["status"] == "D": | False:
+bin/human-approve.sh | test_merge_tools.sh | [ ${#SHA} -eq 40 ] | [ ${#SHA} -ge 1 ]
+bin/scan.sh | test_scan.sh | if [ $hist = 1 ]; then | if [ $hist = 9 ]; then
+bin/scan.sh | test_scan.sh | report email "$label" "$ln" | :
+bin/scan.sh | test_scan.sh | report session-state-path "$f" | :
+install.sh | test_install.sh | missing) rm -f "$dst";; | missing) :;;
+install.sh | test_install.sh | version_check || [ "${INSTALL_ANY_VERSION:-0}" = 1 ] || | true ||
+bin/measure.py | test_measure.sh | if kind == "stop": | if kind == "stopx":
+bin/aws-sso-migrate.sh | test_aws_sso_migrate.sh | if mode != "--write": | if False:
+claude/hooks/verify-before-done.sh | test_e2e.sh | exit 2   # block the turn | exit 0
+claude/hooks/lane-stop-guard.sh | test_e2e.sh | && block "You announced next work | && true "You announced next work
+claude/hooks/tests-lock.sh | test_tests_lock.sh | [ -f "$root/.claude/tests-locked" ] || exit 0 | exit 0
+claude/hooks/tests-lock.sh | test_tests_lock.sh | case "$f" in */.claude/tests-locked) rel=.claude/tests-locked;; esac | :
+claude/hooks/lane-guard.sh | test_tests_lock.sh | runs 'tests-lock\.sh|tests-l[^ ]*[*?[][^ ]*' && out deny | false && out deny
+bin/review_tier.py | test_review_tier.sh | if SNAPSHOT_PATH.search(f["path"]) and | if False and
+bin/review_tier.py | test_review_tier.sh | if any(EXCLUSION.search(ln) for ln in added): | if False:
+bin/review_tier.py | test_review_tier.sh | if any(FLAKY.search(ln) for ln in added): | if False:
+claude/hooks/verify-before-done.sh | test_e2e.sh | OUT=$("${CMD[@]}" 2>&1); RC=$? | printf '%s' "$FP" > "$ST"; OUT=$("${CMD[@]}" 2>&1); RC=$?
+claude/hooks/verify-before-done.sh | test_e2e.sh | grep -qxF "$ROOT" "$TRUST" 2>/dev/null || grep -qxF "${MAIN:-/nonexistent}" "$TRUST" 2>/dev/null || exit 0 | :
+claude/hooks/lane-guard.sh | test_guardhook.sh | '{'|'}'|'!'|if|then|else|elif|do|while|until|fi|done|eval) shift;; | nokeyword) shift;;
+claude/hooks/lane-guard.sh | test_guardhook.sh | -*f*) echo "FORCE"; break;; | -f) echo "FORCE"; break;;
+claude/hooks/lane-guard.sh | test_guardhook.sh | (/merge([[:space:]?]|$)|/merges([[:space:]?]|$)) | (/nomerge)
+claude/hooks/lane-guard.sh | test_guardhook.sh | xargs) shift; | noxargs) shift;
+claude/hooks/lane-guard.sh | test_guardhook.sh | -c) case "${2:-}" in alias.*) echo "ALIAS";; esac; shift 2;; | -c) shift;;
+claude/hooks/lane-guard.sh | test_guardhook.sh | ($SHELLS)([[:space:]][^|;&]*)?<< | (nomatch)<<
+bin/review_tier.py | test_review_tier.sh | r["policy_found"] = policy is not None | r["policy_found"] = bool(policy)
+bin/review_tier.py | test_review_tier.sh | if f.get("old_path") and RUNNABLE_TEST.search(f["old_path"]) and not RUNNABLE_TEST.search(f["path"]): | if False:
+bin/review_tier.py | test_review_tier.sh | if f.get("removed_asserts", 0) and any(WEAK_ASSERT.search(ln) for ln in added): | if False:
+bin/review_tier.py | test_review_tier.sh | ("(?:/.*)?" if plain else "") | ""
+bin/review_tier.py | test_review_tier.sh | "--name-status", "-z", "-M" | "--name-status", "-M"
+bin/merge-queue.sh | test_merge_tools.sh | case "$P" in ''|*[!0-9]*) echo "SKIP malformed | case "$P" in '') echo "SKIP malformed
+install.sh | test_install.sh | linked) ;; | linked) rm -f "$dst"; cp -P "$last/files/$rel" "$dst" 2>/dev/null;;
+install.sh | test_install.sh | case "$d" in *.rolled-back/) continue;; esac | :
+install.sh | test_install.sh | ts=$(printf '%04d' "$seq_n")-$(date +%Y%m%d-%H%M%S) | ts=$(date +%Y%m%d-%H%M%S)-$((99999 - $$))
+bin/scan.sh | test_scan.sh | case "$names" in /*) ;; *) names="$PWD/$names";; esac | :
+bin/tests-lock.sh | test_tests_lock.sh | ex=$(git -C "$repo" rev-parse --git-path info/exclude) | ex=.git/info/exclude
+claude/hooks/lane-guard.sh | test_guardhook.sh | case "$dst" in HEAD|@|'') dst=$CUR;; esac | :
+claude/hooks/lane-guard.sh | test_guardhook.sh | --all|--mirror|--branches) echo "MAIN"; break;; | --nothing) echo "MAIN"; break;;
+claude/hooks/lane-guard.sh | test_guardhook.sh | CUR=$(git -C "$D" symbolic-ref --short -q HEAD 2>/dev/null) | CUR=$(git -C "$D" rev-parse --abbrev-ref HEAD 2>/dev/null)
+claude/hooks/lane-guard.sh | test_guardhook.sh | -c) case "${2:-}" in alias.*) echo "ALIAS";; esac; shift 2;; | -c) shift 2;;
+claude/hooks/lane-guard.sh | test_guardhook.sh | touches 'human-approved|human-a[^ ]*[*?[]| | touches 'zz-none|
+claude/hooks/lane-guard.sh | test_guardhook.sh | (mergePullRequest|enablePullRequestAutoMerge|mergeBranch) | (nomutation)
+claude/hooks/lane-guard.sh | test_guardhook.sh | ssh) shift; | nossh) shift;
+claude/hooks/lane-guard.sh | test_guardhook.sh | echo|printf) if [ "$PIPED" = 1 ]; then | echo|printf) if false; then
+claude/hooks/lane-guard.sh | test_guardhook.sh | -e '/^gh /s/[[:space:]](-b|--body|-t|--title|-F|--body-file)([[:space:]=].*)?$//') | -e 's/^$//')
+claude/hooks/lane-guard.sh | test_guardhook.sh | runs 'python|python3|perl|ruby|node|awk' && printf | false && printf
+claude/hooks/lane-guard.sh | test_guardhook.sh | grep -Ev '[[:space:]](--help|-h)([[:space:]]|$)') | cat)
+claude/hooks/verify-before-done.sh | test_e2e.sh | [ -n "$DIRTY" ] || [ -n "$UNPUSHED" ] || exit 0 | [ -n "$DIRTY" ] || exit 0
+bin/merge-guard.sh | test_merge_tools.sh | case "$MIN" in ''|*[!0-9]*|0) echo | case "$MIN" in '') echo
+bin/scan.sh | test_scan.sh | grep -Eif "$names" /dev/null >/dev/null 2>&1; [ $? -eq 2 ] && { | false && {
+bin/scan.sh | test_scan.sh | { [ -f "$names" ] && [ -r "$names" ] && [ -s "$names" ]; } | [ -r "$names" ]
