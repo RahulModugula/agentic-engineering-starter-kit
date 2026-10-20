@@ -20,6 +20,7 @@ lint:                       ## shellcheck + bash/zsh syntax (shellcheck optional
 	@zsh -n claude/lanes.zsh
 	@if command -v shellcheck >/dev/null; then shellcheck -S warning bin/*.sh claude/hooks/*.sh install.sh; \
 	 else echo "shellcheck not installed; syntax checked only"; fi
+	@if command -v node >/dev/null; then node --check tools/opencode/agentic-kit.js; else echo "node not installed; OpenCode plugin not checked"; fi
 	@python3 -m py_compile bin/*.py tests/*.py && echo "lint ok"
 
 hooks:                      ## run the scan before every commit in this repo

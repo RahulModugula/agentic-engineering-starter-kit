@@ -36,6 +36,7 @@ when the rule is removed. The human keeps three things: approving risky actions 
 | `claude/hooks/notify.sh` (Notification) | A desktop notice when a session waits on you | Panes waiting unseen for an approval | `tests/test_hooks_misc.sh` |
 | `claude/hooks/audit-log.sh` (PostToolUse, Bash, async) | A private (0600) JSONL record of every shell command each session ran, with common secret formats masked | Not being able to say afterwards what an agent actually did | `tests/test_hooks_misc.sh` |
 | `claude/hooks/denied-log.sh` (PermissionDenied) | Logs every auto-mode classifier denial, so repeat blocks get fixed once | The same block re-asked in many panes | `tests/test_hooks_misc.sh` |
+| `claude/hooks/agent-adapter.sh`, `file-guard.sh`, `tools/` (Codex, OpenCode, Antigravity) | The guards above, unchanged, on each tool's own hook input: shell commands to lane-guard, every edited file (each file in a patch too) to the test lock and file guard, reads to the file guard; "ask" becomes "deny"; Antigravity's Stop runs verify-before-done. The file guard applies your settings' `Read(...)`/`Edit(...)` deny rules (symlinks checked by target). Both fail closed | The same guards being Claude-only, when the cheapest way in for many people is another tool | `tests/test_adapters.sh`, `tests/test_install_tools.sh`, `tests/test_lanes.sh` |
 | `claude/lib/opslib.sh` | Outcome watchers (marker/log, not process names), PID-reuse-safe liveness, SSO preflight, auth errors stop runs, retries with backoff | A `pgrep -f` watcher that never fired; runs dying mid-way when credentials expired; one network blip killing a long run | `tests/test_opslib.sh` |
 | `bin/merge-guard.sh` | Merge only at the exact sha, every check completed and green (≥ N), mergeable, not draft/unstable; reads back MERGED | Merging a stale head; merging past a pending check | `tests/test_merge_tools.sh` |
 | `bin/merge-queue.sh` | Merges the queue file in order; needs the verifier's `VERIFIED <sha>` **and** the coordinator's record of it; human tier waits; window or green mode | A builder posting its own VERIFIED (sessions share one GitHub account); green PRs turning main red together | `tests/test_merge_tools.sh` |
@@ -93,6 +94,10 @@ when the rule is removed. The human keeps three things: approving risky actions 
   commands pass `"disableAllHooks": false` through `--settings`, which outranks project settings. Auto mode's
   classifier gets the same rules in plain words (`autoMode.hard_deny`, read only from your user settings), and
   destructive git commands (`reset --hard`, `clean -f`, `branch -D`, `stash drop`…) always ask.
+- **Other agent CLIs are weaker here.** Codex, OpenCode and Antigravity have their own project-level config, which
+  the lane commands can't override the way `--settings` does for Claude Code. They have no "ask" a hook can give,
+  and OpenCode has no stop hook that can keep the agent working. The adapter is tested against each tool's
+  documented hook format, not the live CLIs. `docs/OTHER-AGENTS.md` has the per-tool table and a one-minute live check.
 - **"Yes, and don't ask again" is shared.** Choosing it inside a lane saves the rule to the main checkout's
   `.claude/settings.local.json`, so every lane and the coordinator get it. Say yes once rather than "always" for
   anything you wouldn't approve in every session.

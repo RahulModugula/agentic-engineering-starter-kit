@@ -2,6 +2,7 @@
 PASS=0; FAIL=0; TEST_FILE=${TEST_FILE:-$(basename "$0")}
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/engtest.XXXXXX"); trap 'rm -rf "$TMP"' EXIT
+export KIT_TOOLS=${KIT_TOOLS-none}   # install.sh otherwise sets up every agent CLI on this machine's PATH
 _res() { if [ "$1" = 0 ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL [$TEST_FILE] $2"; fi; }
 ok() { local d=$1; shift; "$@" >/dev/null 2>&1; _res $? "$d (expected success)"; }          # command must succeed
 no() { local d=$1; shift; "$@" >/dev/null 2>&1 && _res 1 "$d (expected failure)" || _res 0 "$d"; }  # must fail
