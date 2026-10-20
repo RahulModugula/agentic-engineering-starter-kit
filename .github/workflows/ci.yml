@@ -18,12 +18,15 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 40   # the mutation check alone took 15 min on Ubuntu and passed 20 on macOS (2026-10-20, 220 mutants)
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0   # the scan covers the full history
+          # On a PR, the PR's own head, not GitHub's merge commit: GitHub authors that with the opener's primary email,
+          # which the scan (rightly) flags, so every PR from an account with a public email would go red.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Tools (Ubuntu)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y jq zsh shellcheck

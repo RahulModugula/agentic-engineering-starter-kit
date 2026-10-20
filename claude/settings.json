@@ -35,6 +35,20 @@
       "Edit(~/.claude/gos/**)",
       "Edit(~/.claude/trusted-repos)",
       "Edit(~/.local/state/merge-queue/**)",
+      "Edit(~/.codex/hooks.json)",
+      "Edit(~/.codex/config.toml)",
+      "Edit(~/.codex/AGENTS.md)",
+      "Edit(~/.config/opencode/plugins/**)",
+      "Edit(~/.config/opencode/plugin/**)",
+      "Edit(~/.claude/kit-tools)",
+      "Edit(~/.config/opencode/opencode.json)",
+      "Edit(~/.config/opencode/opencode.jsonc)",
+      "Edit(~/.config/opencode/AGENTS.md)",
+      "Edit(~/.gemini/config/hooks.json)",
+      "Edit(~/.gemini/antigravity-cli/settings.json)",
+      "Edit(~/.gemini/AGENTS.md)",
+      "Read(~/.codex/auth.json)",
+      "Read(~/.local/share/opencode/auth.json)",
       "Edit(.claude/tests-locked)",
       "Bash(git push --force *)",
       "Bash(git push -f *)"
@@ -158,7 +172,7 @@
     "hard_deny": [
       "$defaults",
       "Never push to main or master, and never move those branches any other way (API ref updates, subtree pushes, push settings): work lands through a pull request merged by the coordinator.",
-      "Never change the session guards or their records: files under ~/.claude (hooks, lib, kit, settings, guard.conf, trusted-repos, lanes.zsh, CLAUDE.md, roles, agents), the merge-queue state, or a repo's .claude/tests-locked.",
+      "Never change the session guards or their records: files under ~/.claude (hooks, lib, kit, settings, guard.conf, trusted-repos, lanes.zsh, CLAUDE.md, roles, agents), the merge-queue state, a repo's .claude/tests-locked, or the other agent CLIs' hook configs and rules (~/.codex, ~/.config/opencode, ~/.gemini).",
       "Never stop processes by name pattern (pkill, killall, kill with pgrep): stop only your own process by its PID.",
       "Never record a human approval or a test lock on a person's behalf: only the person types those."
     ]

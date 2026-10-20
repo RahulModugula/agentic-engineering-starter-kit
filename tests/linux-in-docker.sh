@@ -5,9 +5,9 @@
 set -euo pipefail
 repo=$(cd "${1:-$(dirname "$0")/..}" && pwd)
 docker run --rm --init -v "$repo:/src:ro" ubuntu:24.04 bash -c '
-  set -e
+  set -eo pipefail   # each step pipes into tail: without pipefail a red step still exits 0
   apt-get update -qq >/dev/null
-  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git jq zsh python3 perl file make shellcheck >/dev/null
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git jq zsh python3 perl file make shellcheck nodejs >/dev/null
   cp -a /src /k && cd /k
   git config --global user.email ci@example.com
   git config --global user.name ci

@@ -1,0 +1,40 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|exec_command|shell|local_shell|apply_patch|Edit|Write",
+        "hooks": [
+          { "type": "command", "command": "@KIT_HOOKS@/agent-adapter.sh codex pre", "timeout": 30 }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|exec_command|shell|local_shell",
+        "hooks": [
+          { "type": "command", "command": "@KIT_HOOKS@/agent-adapter.sh codex post", "timeout": 10 }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "compact|resume",
+        "hooks": [
+          { "type": "command", "command": "@KIT_HOOKS@/lane-state.sh", "timeout": 10 }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "@KIT_HOOKS@/verify-before-done.sh", "timeout": 300 }
+        ]
+      },
+      {
+        "hooks": [
+          { "type": "command", "command": "@KIT_HOOKS@/lane-stop-guard.sh", "timeout": 20 }
+        ]
+      }
+    ]
+  }
+}

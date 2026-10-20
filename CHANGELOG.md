@@ -4,6 +4,25 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+### Added
+- Codex CLI, OpenCode and Antigravity CLI support: `install.sh --tool` (default: each one on PATH) merges the kit's
+  hooks into each tool's hook file, or links the OpenCode plugin, and gives each tool the kit's rules in its global
+  `AGENTS.md`. All of it is in the backup and undone by `--rollback`; `--status` checks it.
+- `agent-adapter.sh`: runs the unchanged guards on each tool's hook input; "ask" becomes "deny"; fails closed.
+- `file-guard.sh`: the kit's `Read(...)`/`Edit(...)` deny rules for tools without Claude Code's permission rules.
+- `LANE_TOOL` in `lanes.zsh`: `coord` and `lane` on another agent CLI, each lane in its own worktree.
+- `docs/OTHER-AGENTS.md`: what each tool enforces, free options, and a warning about free models and confidential data.
+### Changed
+- The guards now also protect the other tools' hook configs and rules (`~/.codex`, `~/.config/opencode`, `~/.gemini`)
+  and Codex's and OpenCode's credential files. Protected folders count when named with `//`, `/./` or `..`, with a
+  wildcard in a dot-folder's name under your home (`~/.cod*`), and when a command runs inside them (`cd`, or a
+  tool's working-directory argument).
+- `find` counts as changing files only with `-delete`, `-exec`, `-ok` or `-fprint*`, so a read-only `find` in a
+  protected folder is allowed.
+### Fixed
+- lane-guard: a wildcard anywhere under `~/.claude` (`rm ~/.claude/hook*/lane-guard.sh`) got past the controls
+  check. It also ignored case, which on the default macOS disk doesn't matter (`~/.CLAUDE` is `~/.claude`).
+- `tests/linux-in-docker.sh` exited 0 when a step failed: each step pipes into `tail`, and there was no `pipefail`.
 
 ## [0.1.0] - 2026-10-09
 ### Added

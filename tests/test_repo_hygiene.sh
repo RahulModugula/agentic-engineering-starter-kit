@@ -12,7 +12,7 @@ done
 eq "every script is executable with a shebang" "${bad:-none}" "none"
 crlf=$(grep -rlI $'\r' --exclude-dir=.git . 2>/dev/null | head -3)
 eq "no CRLF line endings" "${crlf:-none}" "none"
-for j in claude/settings.json kit/claude/settings.json; do if [ -f "$j" ]; then ok "$j parses" jq -e . "$j"; fi; done
+for j in claude/settings.json kit/claude/settings.json tools/*/hooks.json; do if [ -f "$j" ]; then ok "$j parses" jq -e . "$j"; fi; done
 # Workflow files: a step glued onto the previous line (a lost newline) would turn the CI run red.
 glued=$(grep -nE '[^[:space:]][[:space:]]+- (name|uses|run):' .github/workflows/*.yml company/.github/workflows/*.yml 2>/dev/null | head -3)
 eq "no workflow step is glued onto the line before it" "${glued:-none}" "none"

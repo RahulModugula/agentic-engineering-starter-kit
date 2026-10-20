@@ -20,6 +20,7 @@ you ─┬─ coord ──brief──▶ lane-1 ─┐
 | You are… | Start with |
 |---|---|
 | Brand new: never used a terminal | [`START-FROM-SCRATCH.md`](START-FROM-SCRATCH.md): every step, every command, what to do when it goes wrong |
+| Using Codex, OpenCode or Antigravity, or no AI subscription at all | [`docs/OTHER-AGENTS.md`](docs/OTHER-AGENTS.md): the same guards in those tools, the free options, and a data warning |
 | A CTO, CEO or engineering leader | [`docs/FOR-LEADERS.md`](docs/FOR-LEADERS.md): value, controls, costs, risks, rollout and what to measure |
 | An engineer evaluating it | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): components, what each enforces, threat model, and how each claim is tested |
 | Deciding what agents may ship alone | [`docs/REVIEW-TIERS.md`](docs/REVIEW-TIERS.md) |
@@ -28,6 +29,8 @@ you ─┬─ coord ──brief──▶ lane-1 ─┐
 ## Quickstart
 
 Needs Claude Code (Pro plan or higher), git, `gh`, `jq`, `python3` and zsh; macOS or Linux (on Windows, use WSL).
+Codex CLI, OpenCode or Antigravity CLI work too, with `--tool` (default: each one on your PATH);
+[`docs/OTHER-AGENTS.md`](docs/OTHER-AGENTS.md) says what each one enforces and how to start without a paid plan.
 
 ```
 git clone https://github.com/RahulModugula/agentic-engineering-starter-kit.git ~/agentic-starter-kit
@@ -43,9 +46,9 @@ Set `REPOS=(…)` and `MAIN_REPO=…` in `~/.claude/lanes.zsh`, then run `coord`
 
 - **Deterministic, not advisory.** The kit's hard rules are hooks: a PreToolUse deny holds in every permission
   mode, including auto. Instructions in a CLAUDE.md are advice; hooks are enforcement, within the limits stated in the threat model.
-- **Proven, not claimed.** 544 test cases, each showing a rule fires and look-alikes pass. An offline
+- **Proven, not claimed.** 738 test cases, each showing a rule fires and look-alikes pass. An offline
   end-to-end test installs into a throwaway home and drives every hook as Claude Code would. `make mutate` breaks
-  every rule on purpose; all 174 mutants are killed (counts from 2026-10-09).
+  every rule on purpose; all 220 mutants are killed (counts from 2026-10-19, macOS and Ubuntu).
 - **Humans where it matters.** Agents ship UI, tests and benchmarks alone. Core code waits for a person at the
   exact commit, and moving core code out of a core folder doesn't dodge that.
 - **Built from real failures.** Each guard exists because something went wrong in daily use: a watcher that never
@@ -61,6 +64,7 @@ Set `REPOS=(…)` and `MAIN_REPO=…` in `~/.claude/lanes.zsh`, then run `coord`
 | `claude/hooks/lane-guard.sh` | Blocks pushes to main, force pushes, merges outside the coordinator, `pkill`/`killall`, edits to the guard's own controls, and sessions approving core code themselves. Fails closed |
 | `claude/hooks/verify-before-done.sh`, `lane-stop-guard.sh` | A turn can't end while your project's checks fail, or right after announcing work it didn't start |
 | `claude/hooks/notify.sh`, `denied-log.sh`, `audit-log.sh`, `lane-state.sh`, `statusline.sh` | A desktop notice when a pane waits on you; a denial log; a private log of every command sessions ran (secrets masked); state re-injected after compaction; context and plan usage at a glance |
+| `claude/hooks/agent-adapter.sh`, `file-guard.sh`, `tools/` | The same guards for Codex, OpenCode and Antigravity: each tool's hook input is translated, and the kit's Read/Edit deny rules are applied where the tool has no permission rules of its own |
 | `claude/lib/opslib.sh` | For long jobs: wait for outcomes (not process names), PID-safe liveness, an SSO preflight, retry with backoff |
 | `bin/merge-queue.sh`, `merge-guard.sh` | Merge only the exact verified sha with every check green; optional "main must be green" mode |
 | `bin/review_tier.py` + `.review-tiers` | Flags core code, moved core code, policy edits and weakened tests for a person |
@@ -81,6 +85,8 @@ Each `--rollback` undoes one `--apply`, restoring every file byte for byte (that
 billed yearly); people running several sessions every day usually need Max (from $100). Prices from
 [claude.com/pricing](https://claude.com/pricing), read 2026-10-09. `docs/FOR-LEADERS.md` has team pricing and
 spend controls.
+No subscription? OpenCode's free models, Antigravity's free tier and Codex on ChatGPT Free all work with the kit;
+read the data warning in [`docs/OTHER-AGENTS.md`](docs/OTHER-AGENTS.md) before sending anything confidential.
 
 **Should I trust a repo that installs hooks?** Only after reading it. The hooks run before every command, so read
 the dry run and `claude/hooks/` first, and pin to a commit you reviewed. `docs/ARCHITECTURE.md` covers this and
