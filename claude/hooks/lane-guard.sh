@@ -30,7 +30,7 @@ RAW=$(printf '%s' "$RAW" | perl -0pe 's/((?:^|\s)(?:-m|--message|--body|--title|
 
 # Fast path: nothing that could matter -> allow without parsing (keeps the guard cheap on every Bash call).
 Q=$(printf '%s' "$RAW" | tr -d "\"'\\\\")
-printf '%s' "$Q" | grep -Eq "push|merge|kill|aws|refs|Ref|\.claude|human|tests-l|<<|eval|[\$\`|]|curl|wget|config|go\.sh|$COORD_SCRIPTS" || exit 0
+printf '%s' "$Q" | grep -Eiq "push|merge|kill|aws|refs|Ref|\.claude|\.codex|opencode|\.gemini|\.config|/\.[^/[:space:]]*[*?[]|human|tests-l|<<|eval|[\$\`|]|curl|wget|config|go\.sh|$COORD_SCRIPTS" || exit 0
 
 SHELLS='bash|sh|zsh|dash|ksh|source|python3?|perl|ruby|node'
 PIPED=0   # text piped into a shell is commands: then echo/printf arguments are parsed as commands too
@@ -111,20 +111,37 @@ fi
 runs 'human-approve\.sh|human-a[^ ]*[*?[][^ ]*' && out deny "Only a person records a human review, with a '!' line in the pane (lane-guard)."
 runs 'tests-lock\.sh|tests-l[^ ]*[*?[][^ ]*'   && out deny "Only the owner locks or unlocks tests, with a '!' line in the pane (lane-guard)."
 # File-changing programs (sed/perl only with -i; python/node/ruby when the command text names a protected path).
-MUTATORS='rm|rmdir|unlink|shred|mv|cp|ln|tee|truncate|touch|chmod|chown|find|dd|install|rsync|ed|vi|vim|nano|emacs|tar|bsdtar|unzip|ditto|patch'
-PROTECTED='merge-queue/|human-approved|tests-lock|\.claude/(hooks|lib|kit|agents|roles|skills|guard\.conf|trusted-repos|settings[^ ]*\.json|CLAUDE\.md|lanes\.zsh|gos)|\.claude/[*?[]|(^|[[:space:]/~])\.claude/?([[:space:]]|$)'
+MUTATORS='rm|rmdir|unlink|shred|mv|cp|ln|tee|truncate|touch|chmod|chown|dd|install|rsync|ed|vi|vim|nano|emacs|tar|bsdtar|unzip|ditto|patch'
+PROTECTED='merge-queue/|human-approved|tests-lock|\.claude/(hooks|lib|kit|agents|roles|skills|guard\.conf|trusted-repos|settings[^ ]*\.json|CLAUDE\.md|lanes\.zsh|gos|kit-tools)|\.claude/[*?[]|(^|[[:space:]/~])\.claude/?([[:space:]]|$)'
+# The other agent CLIs' hook configs and rules (install.sh --tool): changing them would switch their guards off.
+PROTECTED="$PROTECTED"'|\.codex/(hooks\.json|config\.toml|AGENTS\.md)|\.config/opencode/(plugins?|opencode\.jsonc?|AGENTS\.md)|\.gemini/(config/hooks\.json|antigravity-cli/settings\.json|AGENTS\.md)'
+# ...and those folders as a whole (rm -rf ~/.codex, mv ~/.gemini x), or through a wildcard anywhere below them
+# (rm ~/.codex/hook*, rm ~/.claude/hook*/lane-guard.sh): a glob can expand to a protected file.
+PROTECTED="$PROTECTED"'|(^|[[:space:]/~])(\.codex|\.gemini(/config|/antigravity-cli)?|\.config/opencode(/plugins?)?)/?([[:space:]]|$)|(\.claude|\.codex|\.gemini|\.config/opencode)/[^[:space:]]*[*?[]'
+# Right under your home: ~/.config itself (it holds opencode/), and a wildcard in a dot-folder's name (~/.c*,
+# ~/.cod*, ~/.conf*/opencode). A project's own .config folder is not affected.
+HOMEP='(~|\$\{?HOME\}?|/Users/[^/[:space:]]+|/home/[^/[:space:]]+)'
+PROTECTED="$PROTECTED|$HOMEP"'/(\.config/?([[:space:]]|$)|\.config/[^/[:space:]]*[*?[]|\.[^/[:space:]]*[*?[])'
+# A `..` after one of these folders can lead back into anything (~/.config/opencode/../opencode).
+PROTECTED="$PROTECTED"'|(\.claude|\.codex|\.gemini|\.config)(/[^[:space:]]*)?/\.\.(/|[[:space:]]|$)'
+# Matched without regard to case: the default macOS disk ignores it, so ~/.CODEX/hooks.json is the same file.
 touches_protected() {
+  # Doubled slashes and /./ name the same place (rm -rf ~/.codex//), so they're squeezed out before matching.
+  squeeze() { perl -pe 's#/+#/#g; 1 while s#/\./#/#g; s#/\.(?=\s|$)##g'; }
+  local CMDS SRC; CMDS=$(printf '%s\n' "$CMDS_RAW" | squeeze); SRC=$(printf '%s' "$SRC_RAW" | squeeze)
+  local FINDMUT='^find .*[[:space:]](-delete|-exec|-execdir|-ok|-okdir|-fprint|-fprintf|-fls)([[:space:]]|$)'
+  printf '%s\n' "$CMDS" | grep -E "$FINDMUT" | grep -Eiq -- "$PROTECTED" && return 0
   printf '%s\n' "$CMDS" | grep -E "^($MUTATORS)( |$)|^(sed|perl|gsed) .*(-i|--in-place)|^git( .*)? (rm|mv|clean|checkout|restore)( |$)|^(curl|wget)( .*)?[[:space:]](-[a-zA-Z]*[oO]|--output|--output-document)([[:space:]=]|$)" \
-    | grep -Eq -- "$PROTECTED" && return 0
+    | grep -Eiq -- "$PROTECTED" && return 0
   # `cd ~/.claude` (or anywhere inside it) then a relative path: any file change in that command counts.
-  if printf '%s\n' "$CMDS" | grep -E '^(cd|pushd) ' | grep -Eq '\.claude([/[:space:]]|$)|merge-queue'; then
-    printf '%s\n' "$CMDS" | grep -Eq "^($MUTATORS)( |$)|^(sed|perl|gsed) .*(-i|--in-place)|^(curl|wget) " && return 0
+  if printf '%s\n' "$CMDS" | grep -E '^(cd|pushd) ' | grep -Eiq '\.(claude|codex|gemini)([/[:space:]]|$)|\.config(/opencode)?/?([[:space:]]|$)|\.config/opencode/|merge-queue'; then
+    printf '%s\n' "$CMDS" | grep -Eq "^($MUTATORS)( |$)|$FINDMUT|^(sed|perl|gsed) .*(-i|--in-place)|^(curl|wget) " && return 0
     printf '%s' "$SRC" | grep -q '>' && return 0
   fi
-  runs 'python|python3|node|ruby|perl' && printf '%s' "$SRC" | grep -Eq -- "$PROTECTED" && return 0
-  printf '%s' "$SRC" | grep -Eq -- ">[[:space:]]*[^[:space:]]*($PROTECTED)"
+  runs 'python|python3|node|ruby|perl' && printf '%s' "$SRC" | grep -Eiq -- "$PROTECTED" && return 0
+  printf '%s' "$SRC" | grep -Eiq -- ">[[:space:]]*[^[:space:]]*($PROTECTED)"
 }
-touches_protected && out deny "That would change the guard's own controls (hooks, settings, trust list, approvals or the test lock). Owner-only (lane-guard)."
+CMDS_RAW=$CMDS SRC_RAW=$SRC touches_protected && out deny "That would change the guard's own controls (hooks, settings, trust list, approvals or the test lock). Owner-only (lane-guard)."
 
 if [ "${GOS_PROTECT:-0}" = 1 ]; then   # optional: a "go" (the owner's approval file) only comes from the owner
   runs 'go\.sh' && out deny "Only the owner records a go, with a '!' line in the pane (lane-guard)."

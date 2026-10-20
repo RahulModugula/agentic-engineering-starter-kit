@@ -27,7 +27,7 @@ claude/hooks/lane-guard.sh | test_guardhook.sh | touches_protected && out deny |
 claude/hooks/lane-guard.sh | test_guardhook.sh | \.claude/(hooks|lib|kit| | \.claude/(zz|
 claude/hooks/lane-guard.sh | test_guardhook.sh | |^(sed|perl|gsed) .*(-i|--in-place)|^git | |^git
 claude/hooks/lane-guard.sh | test_guardhook.sh | runs 'python|python3|node|ruby|perl' && printf | false && printf
-claude/hooks/lane-guard.sh | test_guardhook.sh | grep -Eq -- ">[[:space:]]*[^[:space:]]*($PROTECTED)" | grep -Eq -- "zzz($PROTECTED)"
+claude/hooks/lane-guard.sh | test_guardhook.sh | grep -Eiq -- ">[[:space:]]*[^[:space:]]*($PROTECTED)" | grep -Eiq -- "zzz($PROTECTED)"
 claude/hooks/lane-guard.sh | test_guardhook.sh | (^|[[:space:]])pr([[:space:]].*)?[[:space:]]merge([[:space:]]|$) | (^|[[:space:]])zzpr([[:space:]].*)?[[:space:]]merge([[:space:]]|$)
 claude/hooks/lane-guard.sh | test_guardhook.sh | grep -Ev '[[:space:]](--help|-h)([[:space:]]|$)') | cat)
 claude/hooks/lane-guard.sh | test_guardhook.sh | /pulls/[0-9]+/merge([[:space:]?/]|$) | /pulls/nomatch
@@ -153,7 +153,7 @@ claude/hooks/lane-guard.sh | test_guardhook.sh | /git/refs|updateRef|createRef|d
 claude/hooks/lane-guard.sh | test_guardhook.sh | |tar|bsdtar|unzip|ditto|patch' | '
 claude/hooks/lane-guard.sh | test_guardhook.sh | -[a-zA-Z]*[oO]|--output | -zz|--output
 claude/hooks/lane-guard.sh | test_guardhook.sh | grep -q '>' && return 0 | false && return 0
-claude/hooks/lane-guard.sh | test_guardhook.sh | grep -Eq '\.claude([/[:space:]]|$)|merge-queue'; then | false; then
+claude/hooks/lane-guard.sh | test_guardhook.sh | |\.config/opencode/|merge-queue'; then | |\.config/opencode/|merge-queue' && false; then
 claude/hooks/lane-guard.sh | test_guardhook.sh | runs pgrep && runs kill && out deny | false && out deny
 claude/hooks/lane-guard.sh | test_guardhook.sh | |parallel|busybox) shift; | |parallel) shift;
 claude/hooks/lane-guard.sh | test_guardhook.sh | subtree) [ "${2:-}" = push ] || continue; shift 2 | subtree) continue
@@ -176,3 +176,49 @@ claude/hooks/verify-before-done.sh | test_e2e.sh | CMD=("$BASECHECK") | CMD=(./.
 claude/hooks/verify-before-done.sh | test_e2e.sh | [ -n "$NOTE" ] && echo "$NOTE" >&2 | true
 install.sh | test_install.sh | if [ ! -e "$CH/$c" ]; then mkdir -p "$CH/$(dirname "$c")"; cp | if true; then mkdir -p "$CH/$(dirname "$c")"; cp
 install.sh | test_install.sh | ! -path './roles/*' ! -path './agents/*' \ | \
+# Other agent CLIs (agent-adapter.sh, file-guard.sh, the OpenCode plugin, install.sh --tool, LANE_TOOL)
+claude/hooks/agent-adapter.sh | test_adapters.sh | ask) printf 'deny\tThis needs your approval | askx) printf 'deny\tThis needs your approval
+claude/hooks/agent-adapter.sh | test_adapters.sh | [ "$rc" = 0 ] || { printf 'deny\t%s failed | true || { printf 'deny\t%s failed
+claude/hooks/agent-adapter.sh | test_adapters.sh | Move to:[ \\t]*(.+?) | Movex to:[ \\t]*(.+?)
+claude/hooks/agent-adapter.sh | test_adapters.sh | if [ -z "$N" ]; then [ "$EV" = pre ] && deny | if false; then [ "$EV" = pre ] && deny
+claude/hooks/agent-adapter.sh | test_adapters.sh | then ($c|map(tostring)|join(" ")) else | then "" else
+claude/hooks/agent-adapter.sh | test_adapters.sh | verdict file-guard.sh "$(cc Read file_path "$p")" | :
+claude/hooks/agent-adapter.sh | test_adapters.sh | verdict tests-lock.sh "$(cc Edit file_path "$p")" | :
+claude/hooks/agent-adapter.sh | test_adapters.sh | if $t == "run_command" then "shell" | if $t == "zz_command" then "shell"
+claude/hooks/agent-adapter.sh | test_adapters.sh | [ "$rc" = 2 ] && jq -n --arg r "$(tail -c 4000 "$e")" | [ "$rc" = 99 ] && jq -n --arg r "$(tail -c 4000 "$e")"
+claude/hooks/agent-adapter.sh | test_adapters.sh | elif $t == "edit" or $t == "write" or $t == "multiedit" | elif $t == "zz"
+claude/hooks/file-guard.sh | test_adapters.sh | and not any(hit(a, p) for a in allow) | and True
+claude/hooks/file-guard.sh | test_adapters.sh | paths = {os.path.normpath(f), os.path.realpath(f)} | paths = {os.path.normpath(f)}
+claude/hooks/file-guard.sh | test_adapters.sh | return re.fullmatch(rx(pat), os.path.basename(path), CI) is not None | return False
+claude/hooks/file-guard.sh | test_adapters.sh | || deny "couldn't read the deny rules from $S (file-guard)." | || true
+claude/hooks/file-guard.sh | test_adapters.sh | if pat.startswith("~/"): return any(hit(h + pat[1:], path) for h in homes) | pass
+claude/hooks/lane-guard.sh | test_adapters.sh | |\.codex/(hooks\.json|config\.toml|AGENTS\.md) | |\.codexzz/(hooks\.json|config\.toml|AGENTS\.md)
+claude/hooks/lane-guard.sh | test_adapters.sh | \.codex|opencode|\.gemini|\.config| | zzz|
+claude/hooks/lane-guard.sh | test_adapters.sh | /\.[^/[:space:]]*[*?[]|human | human
+claude/hooks/lane-guard.sh | test_adapters.sh | grep -Eiq '\.(claude|codex|gemini)([/[:space:]]|$) | grep -Eiq '\.(claude)([/[:space:]]|$)
+claude/hooks/lane-guard.sh | test_adapters.sh | squeeze() { perl -pe 's#/+#/#g; | squeeze() { perl -pe 's#zz##g;
+claude/hooks/lane-guard.sh | test_adapters.sh | (/[^[:space:]]*)?/\.\.(/|[[:space:]]|$) | /zz\.\.(/|[[:space:]]|$)
+claude/hooks/lane-guard.sh | test_adapters.sh | \.config/[^/[:space:]]*[*?[]|\.[^/[:space:]]*[*?[]) | \.config/[^/[:space:]]*[*?[])
+claude/hooks/lane-guard.sh | test_adapters.sh | $FINDMUT|^(sed | ^(sed
+claude/hooks/agent-adapter.sh | test_adapters.sh | || GUARD_CMD="cd '$SHELL_CWD' && $CMD" | || true
+claude/hooks/agent-adapter.sh | test_adapters.sh | [ "$left" -gt 0 ] || { rm -f "$e"; | true || { rm -f "$e";
+claude/hooks/agent-adapter.sh | test_adapters.sh | test("path|file"; "i") | test("^file_path$"; "i")
+claude/hooks/file-guard.sh | test_adapters.sh | f = os.path.expanduser(f)   # a tool may | pass   # a tool may
+tools/opencode/agentic-kit.js | test_adapters.sh | if (why) throw new Error(why) | if (false) throw new Error(why)
+install.sh | test_install_tools.sh | elif ! rules_ok "$f"; then rules_merged | elif false; then rules_merged
+install.sh | test_install_tools.sh | codex|antigravity) hooks_ok "$t" || { echo "DRIFT | codex|antigravity) true || { echo "DRIFT
+install.sh | test_install_tools.sh | [ -e "$(resolve "$d")" ] || echo "newdir $d" | true || echo "newdir $d"
+install.sh | test_install_tools.sh | hooks_merged "$t" > /dev/null 2>&1 || { echo "install: can't parse | true || { echo "install: can't parse
+claude/lanes.zsh | test_lanes.sh | local wt; wt=$(_lane_worktree $repo $t) || return | local wt=$WORK/$repo
+claude/hooks/agent-adapter.sh | test_adapters.sh | [ "$(get .nopath)" = true ] && deny | false && deny
+claude/hooks/agent-adapter.sh | test_adapters.sh | case "$WD" in '') ;; /*) SHELL_CWD=$WD;; *) SHELL_CWD=$CWD/$WD;; esac | :
+claude/hooks/agent-adapter.sh | test_adapters.sh | File:[ \\t]*(.+?)[ \\t\\r]*$"), scan( | File:[ \\t]*(.+?)[ \\t]*$"), scan(
+claude/hooks/agent-adapter.sh | test_adapters.sh | scan("(?m)^[ \\t]*\\*\\*\\* (?:Add | scan("(?m)^\\*\\*\\* (?:Add
+claude/hooks/agent-adapter.sh | test_adapters.sh | with_timeout "$left" "$HERE/$1" | "$HERE/$1"
+claude/hooks/agent-adapter.sh | test_adapters.sh | test("write|replace|edit|delete|remove|move|rename|create|patch"; "i") | test("zzzz"; "i")
+claude/hooks/agent-adapter.sh | test_adapters.sh | elif $t == "read" or $t == "grep" or $t == "glob" or $t == "list" then "read" | elif $t == "read" then "read"
+claude/hooks/file-guard.sh | test_adapters.sh | paths |= {p + "/.kit-probe" for p in paths if os.path.isdir(p)} | pass
+claude/hooks/lane-guard.sh | test_adapters.sh | (\.codex|\.gemini(/config|/antigravity-cli)?| | (\.zz|\.gemini(/config|/antigravity-cli)?|
+claude/hooks/lane-guard.sh | test_adapters.sh | (\.claude|\.codex|\.gemini|\.config/opencode)/[^[:space:]]*[*?[] | (\.zz)/[^[:space:]]*[*?[]
+claude/hooks/lane-guard.sh | test_adapters.sh | grep -Eiq "push|merge | grep -Eq "push|merge
+install.sh | test_install_tools.sh | if old.search(t): | if False:

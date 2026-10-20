@@ -17,6 +17,10 @@ working in small, tested steps. **Allow about an hour** the first time, most of 
 | A Claude plan that includes Claude Code: **Pro** or higher | The free plan doesn't include Claude Code | Pro is $20/month (less if paid yearly). See [claude.com/pricing](https://claude.com/pricing) for current prices |
 | A GitHub account | Where your code lives, and how sessions share work | free |
 
+**No paid AI plan?** The kit also runs with free tools: OpenCode with a free model, Antigravity CLI or Codex on
+ChatGPT Free. Follow steps 1–2 here, then [`docs/OTHER-AGENTS.md`](docs/OTHER-AGENTS.md). Read its warning about
+free models and confidential data first.
+
 **No computer of your own?** Claude Code also runs in a web browser at [claude.ai/code](https://claude.ai/code), from
 any device including a phone, as long as you have a paid plan and a GitHub account. The guards in this kit install
 on a computer, so the browser route is for getting started; come back to this guide when you have a machine.
