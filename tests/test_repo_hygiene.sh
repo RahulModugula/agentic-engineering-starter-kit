@@ -3,7 +3,7 @@
 . "$(dirname "$0")/lib.sh"
 cd "$ROOT" || exit 1
 bad=""
-for f in install.sh bin/*.sh bin/*.py claude/hooks/*.sh tests/*.sh tests/fixtures/fake-gh .githooks/pre-commit; do
+for f in install.sh bin/*.sh bin/*.py scripts/*.sh claude/hooks/*.sh tests/*.sh tests/fixtures/fake-gh .githooks/pre-commit; do
   [ -f "$f" ] || continue
   [ "$f" = tests/lib.sh ] && continue   # sourced, not run
   [ -x "$f" ] || bad="$bad $f(not-executable)"
@@ -21,4 +21,15 @@ abs=$(grep -lE '/(Users|home)/[a-z]' claude/hooks/* claude/lib/* claude/guard.co
 eq "no hook, lib or guard.conf hardcodes a home directory" "${abs:-none}" "none"
 abs=$(jq -r '[.hooks[]?[]?.hooks[]?.command, .statusLine.command] | .[] | select(.)' claude/settings.json | grep -E '^/(Users|home)/' | head -2)
 eq "no settings.json hook command hardcodes a home directory" "${abs:-none}" "none"
+# Docs index: every top-level doc is linked from the README, so a new doc can't go unfound.
+unlinked_docs() {  # $1 = repo root; prints each docs/*.md the README doesn't link
+  local d; for d in "$1"/docs/*.md; do
+    [ -f "$d" ] || continue
+    grep -qF "(docs/$(basename "$d"))" "$1/README.md" || echo "docs/$(basename "$d")"
+  done
+}
+unlinked=$(unlinked_docs "$ROOT" | head -3)
+eq "every docs/*.md is linked from README.md" "${unlinked:-none}" "none"
+mkdir -p "$TMP/idx/docs"; echo '[a](docs/A.md)' > "$TMP/idx/README.md"; : > "$TMP/idx/docs/A.md"; : > "$TMP/idx/docs/B.md"
+eq "the docs-index check catches an unlinked doc" "$(unlinked_docs "$TMP/idx")" "docs/B.md"
 finish

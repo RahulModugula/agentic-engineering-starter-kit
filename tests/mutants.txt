@@ -176,3 +176,9 @@ claude/hooks/verify-before-done.sh | test_e2e.sh | CMD=("$BASECHECK") | CMD=(./.
 claude/hooks/verify-before-done.sh | test_e2e.sh | [ -n "$NOTE" ] && echo "$NOTE" >&2 | true
 install.sh | test_install.sh | if [ ! -e "$CH/$c" ]; then mkdir -p "$CH/$(dirname "$c")"; cp | if true; then mkdir -p "$CH/$(dirname "$c")"; cp
 install.sh | test_install.sh | ! -path './roles/*' ! -path './agents/*' \ | \
+scripts/gate-isolated.sh | test_gate_isolated.sh | [ -e "$WT" ] && die | false && die
+scripts/gate-isolated.sh | test_gate_isolated.sh | if [ "$rc" = 0 ]; then | if true; then
+scripts/gate-isolated.sh | test_gate_isolated.sh | if [ "$now" != "$SHA_UNDER_TEST" ] || [ -n "$dirty" ]; then | if false; then
+scripts/gate-isolated.sh | test_gate_isolated.sh | if ! git -C "$WT" -c user.name=gate | if false && git -C "$WT" -c user.name=gate
+scripts/gate-isolated.sh | test_gate_isolated.sh | merge -q --no-edit "$BASE" >> | true "$BASE" >>
+tests/test_repo_hygiene.sh | test_repo_hygiene.sh | grep -qF "(docs/$(basename "$d"))" "$1/README.md" || echo | true || echo

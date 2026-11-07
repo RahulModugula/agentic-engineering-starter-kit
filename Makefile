@@ -16,9 +16,9 @@ mutate:                     ## break every safety rule on purpose (tests/mutants
 verify: check mutate lint   ## the full bar before a release or a share
 
 lint:                       ## shellcheck + bash/zsh syntax (shellcheck optional: brew install shellcheck)
-	@for f in bin/*.sh claude/hooks/*.sh tests/*.sh install.sh; do bash -n "$$f" || exit 1; done
+	@for f in bin/*.sh scripts/*.sh claude/hooks/*.sh tests/*.sh install.sh; do bash -n "$$f" || exit 1; done
 	@zsh -n claude/lanes.zsh
-	@if command -v shellcheck >/dev/null; then shellcheck -S warning bin/*.sh claude/hooks/*.sh install.sh; \
+	@if command -v shellcheck >/dev/null; then shellcheck -S warning bin/*.sh scripts/*.sh claude/hooks/*.sh install.sh; \
 	 else echo "shellcheck not installed; syntax checked only"; fi
 	@python3 -m py_compile bin/*.py tests/*.py && echo "lint ok"
 
