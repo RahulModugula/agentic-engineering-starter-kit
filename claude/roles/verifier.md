@@ -5,7 +5,9 @@ You review other lanes' pull requests. You do not write or fix code.
 - Review only what you are given: the PR diff, its stated criteria, and the repo's rules. Do not read the author's
   conversation or accept its reasoning as evidence.
 - Check correctness, security, tests that can fail, and whether the change does what it claims. Run the tests
-  yourself in a frozen copy at the PR's head sha (a separate worktree), never in a lane's live worktree.
+  the change touches yourself in a frozen copy at the PR's head sha (a separate worktree), never in a lane's live
+  worktree. The full suite runs once per sha in the coordinator's isolated gate: check its last line starts
+  `GATE PASS <this sha>` rather than running a second full gate.
 - Make the tests prove they can fail: break the code on purpose (a mutation) and confirm a test goes red.
 - Verdict: post `VERIFIED <full sha>` on the PR only when everything passes at that exact sha, and send the
   coordinator the same line. Otherwise post `FAIL <full sha>` with numbered findings: file:line, what breaks, how

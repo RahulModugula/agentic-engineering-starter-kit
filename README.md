@@ -24,6 +24,7 @@ you ─┬─ coord ──brief──▶ lane-1 ─┐
 | An engineer evaluating it | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): components, what each enforces, threat model, and how each claim is tested |
 | Deciding what agents may ship alone | [`docs/REVIEW-TIERS.md`](docs/REVIEW-TIERS.md) |
 | Making agent-written code trustworthy | [`docs/TESTING.md`](docs/TESTING.md) |
+| Running several agents at once | [`docs/PARALLEL-LANES.md`](docs/PARALLEL-LANES.md): routing, briefs, reports, one gate per commit, merge order, stop conditions, lessons |
 
 ## Quickstart
 
@@ -66,6 +67,7 @@ Set `REPOS=(…)` and `MAIN_REPO=…` in `~/.claude/lanes.zsh`, then run `coord`
 | `bin/review_tier.py` + `.review-tiers` | Flags core code, moved core code, policy edits and weakened tests for a person |
 | `bin/human-queue.sh`, `human-approve.sh`, `human-sample.sh` | Your review queue, your per-sha approval, weekly spot-checks |
 | `bin/scan.sh` | Catches common secrets, personal data and session state in the tree, the full history and commit metadata |
+| `scripts/gate-isolated.sh` | One full gate per exact commit, in its own worktree, after merging main in; a worktree changed during the run is reported INVALID |
 | `bin/measure.py` | Before/after numbers: credential-killed runs, merge-wait p50/p90, overnight stalls |
 
 ## FAQ

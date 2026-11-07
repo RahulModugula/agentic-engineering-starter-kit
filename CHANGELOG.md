@@ -4,6 +4,15 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+### Added
+- `docs/PARALLEL-LANES.md`: delegation playbook for a coordinator plus lanes (routing, brief and report formats,
+  one full gate per head sha, merge sequence, stop conditions, lessons from 2026-11-07, labelled external sources).
+- `scripts/gate-isolated.sh`: one gate run per worktree, named after its log, with merge-up, INVALID detection and
+  `--self-check`; tested in `tests/test_gate_isolated.sh`, with mutants.
+- Repo hygiene test: every `docs/*.md` is linked from the README.
+### Changed
+- Lanes run lint and targeted tests, not the full gate; the coordinator runs one isolated gate per head sha, and
+  the verifier reads that gate's log instead of running a second full suite.
 
 ## [0.1.0] - 2026-10-09
 ### Added
