@@ -176,3 +176,11 @@ claude/hooks/verify-before-done.sh | test_e2e.sh | CMD=("$BASECHECK") | CMD=(./.
 claude/hooks/verify-before-done.sh | test_e2e.sh | [ -n "$NOTE" ] && echo "$NOTE" >&2 | true
 install.sh | test_install.sh | if [ ! -e "$CH/$c" ]; then mkdir -p "$CH/$(dirname "$c")"; cp | if true; then mkdir -p "$CH/$(dirname "$c")"; cp
 install.sh | test_install.sh | ! -path './roles/*' ! -path './agents/*' \ | \
+# bin/ratchet.py: a baseline that only shrinks
+bin/ratchet.py | test_ratchet.sh | if after > before: | if after > before + 99:
+bin/ratchet.py | test_ratchet.sh | if rises and not report_only: | if False:
+bin/ratchet.py | test_ratchet.sh | if isinstance(v, bool) or not isinstance(v, int) or v < 0: | if not isinstance(v, int) or v < 0:
+bin/ratchet.py | test_ratchet.sh | kept = {k: v for k, v in sorted(current.items()) if v > 0} | kept = {k: v for k, v in sorted(current.items()) if v >= 0}
+bin/ratchet.py | test_ratchet.sh | print("ratchet: refusing to rewrite the baseline while a count is up") | return 0  #
+bin/ratchet.py | test_ratchet.sh | (report_only and args[0] != "check") | (False)
+bin/ratchet.py | test_ratchet.sh | before, after = baseline.get(k, 0), current.get(k, 0) | before, after = baseline.get(k, 99), current.get(k, 0)
