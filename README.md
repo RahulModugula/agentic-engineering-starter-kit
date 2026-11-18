@@ -24,6 +24,8 @@ you ─┬─ coord ──brief──▶ lane-1 ─┐
 | An engineer evaluating it | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): components, what each enforces, threat model, and how each claim is tested |
 | Deciding what agents may ship alone | [`docs/REVIEW-TIERS.md`](docs/REVIEW-TIERS.md) |
 | Making agent-written code trustworthy | [`docs/TESTING.md`](docs/TESTING.md) |
+| Knowing which practices have evidence behind them | [`docs/PRACTICES.md`](docs/PRACTICES.md): graded A to D, with sources, caveats and a do-not-adopt list |
+| Splitting big functions without changing behaviour | [`docs/REFACTORING.md`](docs/REFACTORING.md), plus copy-ready files in [`templates/`](templates/) |
 
 ## Quickstart
 
@@ -67,6 +69,8 @@ Set `REPOS=(…)` and `MAIN_REPO=…` in `~/.claude/lanes.zsh`, then run `coord`
 | `bin/human-queue.sh`, `human-approve.sh`, `human-sample.sh` | Your review queue, your per-sha approval, weekly spot-checks |
 | `bin/scan.sh` | Catches common secrets, personal data and session state in the tree, the full history and commit metadata |
 | `bin/measure.py` | Before/after numbers: credential-killed runs, merge-wait p50/p90, overnight stalls |
+| `bin/ratchet.py` | A baseline that may only shrink: fails when any count rises; `--report-only` first, then block |
+| `templates/` | A minimal CLAUDE.md, a PR body with an evidence section, a refactor checklist and an agent brief |
 
 ## FAQ
 

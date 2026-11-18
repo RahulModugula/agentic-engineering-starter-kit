@@ -4,6 +4,17 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+### Added
+- `docs/PRACTICES.md`: engineering practices graded A to D by evidence, each with source, date read and caveat; a
+  do-not-adopt list, open questions, soft-first enforcement, tracker practice and a paired-experiment method.
+- `docs/REFACTORING.md`: a behaviour-neutral refactor protocol (goldens from the original, hash seeds, separate-process
+  differential, targeted mutants, ratchets, independent review), the pitfalls that produced false greens, and a
+  design for large async functions.
+- `templates/`: minimal CLAUDE.md, PR body with an evidence section, refactor checklist and agent brief.
+- `bin/ratchet.py`: a generic baseline that may only shrink, with a report-only mode; tested and mutation-checked.
+
+### Changed
+- The pull request template asks for dated numbers, behaviour differences and what is not proven.
 
 ## [0.1.0] - 2026-10-09
 ### Added

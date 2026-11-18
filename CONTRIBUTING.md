@@ -9,7 +9,8 @@ Thanks for helping. Bug reports, docs fixes and new guards are all welcome.
 4. **Every safety rule needs a test that fails without it.** Add the test, and add a line to `tests/mutants.txt`
    that removes your rule; `make mutate` must show it killed.
 5. Add a line under `## [Unreleased]` in `CHANGELOG.md`.
-6. Open a PR and fill in the template.
+6. Open a PR and fill in the template. A new check starts as a report; it blocks only once the failure it guards
+   has recurred (`docs/PRACTICES.md`, section 5). A number in a doc needs a date, a count and a source.
 
 **Editing the kit with Claude Code:** the installed settings deny Claude edits to `~/.claude/kit/**`, which links
 to your clone, and deny rules follow links. While you work on the kit, remove `"Edit(~/.claude/kit/**)"` from
