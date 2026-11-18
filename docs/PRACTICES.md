@@ -99,6 +99,20 @@ the verdict goes in the PR. Style findings are optional. (`claude/agents/verifie
 subagents for read-only sweeps and reviews; a cheap model for reads and scans, a strong one for decisions; targeted
 tests only until the machine is quiet; one heavy suite at a time.
 
+On a shared machine "one heavy suite at a time" needs a mechanism, not a request. Several assistants running tests
+at once produced timeouts and false reds. A gate-file chain fixed it: a background script touches `GO-b` when
+`DONE-a` appears, then `GO-c` after `DONE-b`. Each assistant does its reading and edits first, waits for its own
+GO file before running anything, and writes its DONE file when finished. Reports went from timeouts to clean runs.
+
+**P9b. Script side effects and shell traps.** Two cheap guards, each from a real incident.
+- *Importing a script runs it.* A helper script was imported only for its functions; its top-level `main()` ran and
+  wrote 13 duplicate tickets to a tracker (deleted within minutes). Every script gets an
+  `if __name__ == "__main__":` guard; copy a small helper rather than import a script with side effects; before
+  importing one, grep it for a bare top-level call.
+- *zsh modifiers mangle refspecs.* In zsh `$VAR:refs/heads/x` applies the `:r` modifier and silently rewrites the
+  refspec; the push failed with `src refspec <sha>efs/heads/x does not match any`. Brace the variable:
+  `"${VAR}:refs/heads/x"`.
+
 **P10. A scheduled cleanup pass, report only.** A fortnightly read-only audit for duplicate helpers, dead code and
 drift from the architecture. (C; the duplication data above gives indirect support.)
 

@@ -13,6 +13,10 @@ and versions follow [Semantic Versioning](https://semver.org/).
 - `templates/`: minimal CLAUDE.md, PR body with an evidence section, refactor checklist and agent brief.
 - `bin/ratchet.py`: a generic baseline that may only shrink, with a report-only mode; tested and mutation-checked.
 
+- Practical lessons in `docs/REFACTORING.md`, `docs/PRACTICES.md` and the agent brief: key-order and review-found golden
+  gaps, zero-match mutants, thread-pool races, import side effects, zsh refspecs, a test gate for shared machines, and
+  approvals that cannot be relayed.
+
 ### Changed
 - The pull request template asks for dated numbers, behaviour differences and what is not proven.
 

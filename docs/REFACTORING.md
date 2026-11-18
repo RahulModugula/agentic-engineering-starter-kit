@@ -56,7 +56,19 @@ Each of these produced a result that looked fine and was not.
   trying to write an input that tells the two apart. If you can, it was a test gap.
 - **A mutant pattern must match once.** A substitution that hits the first of several matches may mutate the wrong
   line; `grep -c` the pattern and require exactly 1 before you call a mutant survived. `tests/mutate.py` in this
-  kit reports zero matches as STALE and several as AMBIGUOUS for the same reason.
+  kit reports zero matches as STALE and several as AMBIGUOUS for the same reason. We also had the opposite case: a
+  planted mutant whose pattern matched zero times "passed", so the run proved nothing. Assert the match count is
+  exactly 1 before reading the result, and treat zero as a failed check, not a survivor.
+- **Goldens that compare parsed dicts cannot see a key-order change.** Callers that serialise the output can. An
+  independent review found a surviving mutant that reordered keys while every golden stayed green. When order is
+  observable, assert it explicitly (compare the keys as a list) or compare the serialised text.
+- **Golden gaps found by independent review are normal; budget for them.** In one batch three reviews each found 1
+  to 5 mutants the golden missed: an exception type, a call order, a falsy-but-not-None value, an error text over a
+  length cap. "The builder's mutants all died" is not enough, because the builder tests what they thought of. The
+  reviewer writes their own mutants, and each area gets a follow-up commit to close the gaps they find.
+- **A review differential can race with a real thread pool.** One straggler log line made a difference look real.
+  Settle the pool (join, or wait for an event) or substitute a sequential pool stub before calling a difference
+  real, and re-run once to see whether it repeats.
 - **Don't probe a tree a mutant run is editing.** Run exploratory checks against a separate copy.
 - **Real-clock bounds flake under load.** A test that asserts "finished within 200 ms" fails when the machine is
   busy, with no bug behind it (measured: 14 of 40 runs failed before the fix, 0 of 40 after). Use CPU time rather
