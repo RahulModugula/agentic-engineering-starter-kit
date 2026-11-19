@@ -73,6 +73,16 @@ adapt them to your project.
 - **Held-out acceptance tests** that the implementer never sees cut test-gaming to near zero, at some cost to
   performance. Use them for the highest-stakes work.
 
+## Refactoring and the evidence behind all of this
+
+Passing the existing tests is weak evidence that a refactor kept behaviour: about one in five non-equivalent LLM
+refactorings passed them (arXiv 2602.15761, a single preprint). `docs/REFACTORING.md` is the protocol (goldens
+recorded from the original, hash seeds, differential, mutants on the changed code) and lists the pitfalls that gave
+false greens: mutants run against the wrong import path, a recorder that records a fake exception, real-clock
+bounds that flake under load. `docs/PRACTICES.md` grades the evidence for each practice here. Coverage is a map for
+finding unreached code; mutants killed on the changed lines are the bar. `bin/ratchet.py` keeps a count (complexity,
+suppressions) from rising without anyone choosing it.
+
 ## Evaluating the setup itself (evals)
 
 When you change a prompt, a hook, or the model, re-run a small private eval:

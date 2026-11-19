@@ -24,6 +24,9 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0   # the scan covers the full history
+          # Scan the PR's own commits, not GitHub's synthetic merge commit: that one is authored with the
+          # PR opener's account email, which the history scan (correctly) reports.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Tools (Ubuntu)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y jq zsh shellcheck
